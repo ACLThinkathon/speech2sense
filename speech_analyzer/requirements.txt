@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+requests
+sqlalchemy
+groq
+streamlit
+pandas
+matplotlib
+requests
+python-multipart
