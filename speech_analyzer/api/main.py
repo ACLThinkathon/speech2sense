@@ -1,14 +1,10 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
 
 from analyzer.analyzer import analyze_sentences
 from analyzer.models import Conversation, Utterance
 from api.database import SessionLocal, init_db
-
-import shutil
-import os
 
 app = FastAPI(title="Speech2Sense API")
 
@@ -20,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Dependency to get DB session
 def get_db():
     db = SessionLocal()
@@ -28,9 +25,11 @@ def get_db():
     finally:
         db.close()
 
+
 @app.on_event("startup")
 def startup_event():
     init_db()
+
 
 @app.post("/analyze/", response_model=dict)
 async def analyze_conversation(file: UploadFile = File(...), domain: str = None, db: Session = Depends(get_db)):
@@ -48,7 +47,7 @@ async def analyze_conversation(file: UploadFile = File(...), domain: str = None,
     # Analyze
     results = analyze_sentences(text, domain)
 
-    # Store utterances with sentiments
+    # Store utterances with sentiments and intents
     for res in results:
         utterance = Utterance(
             conversation_id=conv.id,
@@ -56,7 +55,9 @@ async def analyze_conversation(file: UploadFile = File(...), domain: str = None,
             sentence=res["sentence"],
             sentiment=res["sentiment"],
             score=res["score"],
-            reason=res["reason"]
+            reason=res["reason"],
+            intent=res.get("intent", "unknown"),
+            intent_reason=res.get("intent_reason", "")
         )
         db.add(utterance)
     db.commit()
@@ -65,6 +66,7 @@ async def analyze_conversation(file: UploadFile = File(...), domain: str = None,
         "conversation_id": conv.id,
         "results": results
     }
+
 
 @app.get("/conversations/{conversation_id}", response_model=dict)
 def get_conversation(conversation_id: int, db: Session = Depends(get_db)):
@@ -76,7 +78,9 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db)):
         "sentence": u.sentence,
         "sentiment": u.sentiment,
         "score": u.score,
-        "reason": u.reason
+        "reason": u.reason,
+        "intent": getattr(u, "intent", "unknown"),
+        "intent_reason": getattr(u, "intent_reason", "")
     } for u in conv.utterances]
     return {
         "conversation_id": conv.id,

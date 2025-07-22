@@ -33,16 +33,31 @@ if uploaded_file and st.button("🔍 Analyze"):
         results = resp_json.get("results", [])
 
     if results:
+        # Normalize data into DataFrame
         df = pd.DataFrame(results)
 
-        st.subheader("🧾 Utterance-Level Sentiment Table")
-        st.dataframe(df)
+        # Rename backend keys for frontend consistency
+        df.rename(columns={
+            "score": "score_sentiment",
+            "reason": "reason_sentiment",
+            "intent_reason": "reason_intent"  # Rename to match column usage
+        }, inplace=True)
 
+        # Define which columns to display safely
+        columns_to_display = ["speaker", "sentence", "intent", "sentiment", "score_sentiment"]
+
+        if "reason_intent" in df.columns:
+            columns_to_display.append("reason_intent")
+        if "reason_sentiment" in df.columns:
+            columns_to_display.append("reason_sentiment")
+
+        st.subheader("🧾 Utterance-Level Sentiment & Intent Table")
+        st.dataframe(df[columns_to_display])
+
+        # Pie Chart - Sentiment
         st.subheader("📊 Sentiment Distribution (Pie Chart)")
         sentiment_counts = df["sentiment"].value_counts()
         fig1, ax1 = plt.subplots()
-
-        # Use consistent color mapping for 5 sentiments
         color_map = {
             "extreme positive": "#00ff00",
             "positive": "#7CFC00",
@@ -51,24 +66,35 @@ if uploaded_file and st.button("🔍 Analyze"):
             "extreme negative": "red"
         }
         colors = [color_map.get(s, 'blue') for s in sentiment_counts.index]
-
         ax1.pie(sentiment_counts, labels=sentiment_counts.index, autopct='%1.1f%%',
                 colors=colors, startangle=90, counterclock=False)
         ax1.axis('equal')
         st.pyplot(fig1)
 
+        # Bar Chart - Intent
+        st.subheader("🏷️ Intent Distribution")
+        intent_counts = df["intent"].value_counts()
+        fig2, ax2 = plt.subplots()
+        ax2.bar(intent_counts.index, intent_counts.values, color="#3a86ff")
+        ax2.set_ylabel("Count")
+        ax2.set_title("Intent Distribution")
+        st.pyplot(fig2)
+
+        # Sentiment Summary
         st.subheader("😊 Overall Sentiment Summary")
+
 
         def average_and_mood(sub_df):
             if sub_df.empty:
                 return 0.0, "❔"
-            avg = sub_df["score"].mean()
+            avg = sub_df["score_sentiment"].mean()
             if avg >= 0.7:
                 return avg, "😃"
             elif avg >= 0.4:
                 return avg, "😐"
             else:
                 return avg, "😞"
+
 
         agent_df = df[df["speaker"].str.lower().str.contains("agent")]
         customer_df = df[df["speaker"].str.lower().str.contains("customer")]
