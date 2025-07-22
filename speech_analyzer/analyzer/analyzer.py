@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = Groq(api_key="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")
+client = Groq(api_key="")
 
 
 def extract_speaker_utterances(text):
