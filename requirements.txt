@@ -4,3 +4,9 @@ torch
 pandas
 matplotlib
 scikit-learn
+
+# audio to text packages
+mutagen
+eyed3
+groq
+pyannote.audio
