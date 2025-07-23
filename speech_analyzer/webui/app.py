@@ -33,7 +33,7 @@ if uploaded_file and st.button("🔍 Analyze"):
         results = resp_json.get("results", [])
 
     if results:
-        # Normalize data into DataFrame
+        # Normalize testdata into DataFrame
         df = pd.DataFrame(results)
 
         # Rename backend keys for frontend consistency

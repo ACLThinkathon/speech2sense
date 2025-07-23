@@ -91,7 +91,7 @@ def analyze_sentences(text, domain=None):
 
         try:
             sentiment_response = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama3-70b-8192",
                 messages=[system_msg_sentiment] + few_shot_examples + [{"role": "user", "content": sentence}],
                 response_format={"type": "json_object"},
                 temperature=0.2
@@ -106,7 +106,7 @@ def analyze_sentences(text, domain=None):
 
         try:
             intent_response = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama3-70b-8192",
                 messages=[system_msg_intent, {"role": "user", "content": sentence}],
                 response_format={"type": "json_object"},
                 temperature=0.2
