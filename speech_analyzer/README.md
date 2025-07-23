@@ -1,8 +1,6 @@
 # speech2sense
 Automation of sentiment anlysis 
 
-To run the app : streamlit run app.py
-
 
 Steps to execute code without using the docker:
 
@@ -16,10 +14,9 @@ pip install -r requirements.txt
 export GROQ_API_KEY="your_actual_api_key"
 
 # Start backend API server
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+cd api
+Run start_api.bat
 
 # In new terminal, activate venv and start Streamlit UI
-
- streamlit run app.py --server.port 3000 --server.address 0.0.0.0
- Change 0.0.0.0 to your own ipv4 address
- 
+cd webui
+streamlit run app.py
