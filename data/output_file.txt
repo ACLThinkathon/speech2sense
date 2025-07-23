@@ -1,0 +1,10 @@
+Agent :  Hello and welcome to College 6. My name is Emily. How may I assist you? 
+Customer :  Hi Emily. I've been having trouble receiving notification emails. They used to arrive instantly but now there is a long delay. 
+Agent :  I'm sorry for the inconvenience. Let me take a look. Can you give me your account details so I can verify the email settings? 
+Customer :  Of course, my username is user101 and the associate email is binyamin at gmail.com. 
+Agent :  Okay, thank you. It's ticking now. It appears your notification preference were recent during a recent update. 
+Agent :  I will adjust them back to real alerts. So you should start getting forms emails again? 
+Customer :  That's great news. Thanks for fixing it. It's so quick. 
+Agent :  You're welcome. Thanks for contacting politics. Let me know if there's anything else I can for you today. 
+Customer :  Nope, that's everything. Have a good day, Emily. 
+Agent :  You too. Take care. Goodbye. 
