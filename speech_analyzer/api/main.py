@@ -262,30 +262,3 @@ async def analyze_conversation(
         logger.error(f"Unexpected error in analyze endpoint: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-
-def store_analysis_results(db: Session, results: dict):
-    conversation = Conversation(
-        raw_text=results.get("raw_text", ""),
-        domain=results.get("domain", "general"),
-    )
-    db.add(conversation)
-    db.commit()
-    db.refresh(conversation)
-
-    for i, utt in enumerate(results.get("utterances", [])):
-        utterance = Utterance(
-            conversation_id=conversation.id,
-            utterance_id=i + 1,
-            speaker=utt.get("speaker", "Unknown"),
-            sentence=utt.get("sentence", ""),
-            sentiment=utt.get("sentiment", ""),
-            sentiment_score=utt.get("score", 0.0),
-            sentiment_reason=utt.get("reason", ""),
-            intent=utt.get("intent", "unknown"),
-            intent_reasoning=utt.get("intent_reason", ""),
-            sentiment_confidence=utt.get("sentiment_confidence", 1.0),
-            intent_confidence=utt.get("intent_confidence", 1.0),
-        )
-        db.add(utterance)
-    db.commit()
