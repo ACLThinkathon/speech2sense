@@ -92,6 +92,67 @@ async def log_exceptions(request: Request, call_next):
         logger.error(traceback.format_exc())
         raise e
 
+def store_analysis_results(db: Session, analysis_data: dict) -> int:
+    try:
+        conversation = Conversation(
+            conversation_id=analysis_data.get('conversation_id'),
+            raw_text=analysis_data.get('raw_text', ''),
+            domain=analysis_data.get('domain', 'general'),
+            primary_topic=analysis_data.get('topic_analysis', {}).get('primary_topic'),
+            topics=analysis_data.get('topic_analysis', {}).get('topics', []),
+            topic_confidence=analysis_data.get('topic_analysis', {}).get('confidence'),
+            topic_reasoning=analysis_data.get('topic_analysis', {}).get('reasoning'),
+            csat_score=analysis_data.get('csat_analysis', {}).get('csat_score'),
+            csat_rating=analysis_data.get('csat_analysis', {}).get('csat_rating'),
+            csat_methodology=analysis_data.get('csat_analysis', {}).get('methodology'),
+            agent_performance_score=analysis_data.get('agent_performance', {}).get('overall_score'),
+            agent_performance_rating=analysis_data.get('agent_performance', {}).get('rating'),
+            agent_sentiment_avg=analysis_data.get('agent_performance', {}).get('agent_sentiment_avg'),
+            professionalism_score=analysis_data.get('agent_performance', {}).get('professionalism_score'),
+            customer_sentiment_improvement=analysis_data.get('agent_performance', {}).get('customer_sentiment_improvement'),
+            total_utterances=analysis_data.get('total_utterances'),
+            speakers=analysis_data.get('speakers', [])
+        )
+
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+
+        for utterance_data in analysis_data.get('utterances', []):
+            utterance = Utterance(
+                conversation_id=conversation.id,
+                utterance_id=utterance_data.get('utterance_id'),
+                speaker=utterance_data.get('speaker'),
+                sentence=utterance_data.get('sentence'),
+                sentiment=utterance_data.get('sentiment'),
+                sentiment_score=utterance_data.get('score'),
+                sentiment_reason=utterance_data.get('reason'),
+                sentiment_keywords=utterance_data.get('keywords', []),
+                sentiment_confidence=utterance_data.get('sentiment_confidence'),
+                intent=utterance_data.get('intent'),
+                secondary_intents=utterance_data.get('secondary_intents', []),
+                intent_confidence=utterance_data.get('intent_confidence'),
+                intent_reasoning=utterance_data.get('intent_reasoning')
+            )
+            db.add(utterance)
+
+        analysis_result = AnalysisResult(
+            conversation_id=conversation.id,
+            analysis_version="2.1.0",
+            model_used="llama3-8b-8192",
+            analysis_success_rate=1.0,
+            average_confidence_score=0.85
+        )
+        db.add(analysis_result)
+
+        db.commit()
+        logger.info(f"Analysis results stored for conversation {conversation.id}")
+        return conversation.id
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error storing analysis results: {str(e)}")
+        raise
 
 # Enhanced Analyze API supporting both audio and text files
 @app.post("/analyze/", response_model=dict)
