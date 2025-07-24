@@ -7,6 +7,7 @@ import requests
 import json
 from datetime import datetime
 import numpy as np
+import io
 
 # Page configuration
 st.set_page_config(
@@ -34,6 +35,21 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         text-align: center;
     }
+    .file-type-indicator {
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin-left: 0.5rem;
+    }
+    .audio-file {
+        background-color: #e3f2fd;
+        color: #1976d2;
+    }
+    .text-file {
+        background-color: #f3e5f5;
+        color: #7b1fa2;
+    }
     .csat-excellent { background-color: #00ff00; color: black; }
     .csat-good { background-color: #7CFC00; color: black; }
     .csat-satisfactory { background-color: #FFD700; color: black; }
@@ -59,8 +75,17 @@ def display_header():
     <div class="main-header">
         <h1>🎯 Speech2Sense Analytics Dashboard</h1>
         <p>Advanced Conversation Analytics with AI-Powered Insights</p>
+        <p>📁 Upload Text Files | 🎵 Upload Audio Files (WAV, MP3, MP4)</p>
     </div>
     """, unsafe_allow_html=True)
+
+
+def display_file_type_indicator(file_type):
+    """Display file type indicator"""
+    if file_type == 'audio':
+        return '<span class="file-type-indicator audio-file">🎵 AUDIO</span>'
+    else:
+        return '<span class="file-type-indicator text-file">📁 TEXT</span>'
 
 
 def display_csat_card(csat_data):
@@ -248,6 +273,34 @@ def create_detailed_metrics_table(df):
     return metrics_df
 
 
+def display_transcription_preview(transcription_text):
+    """Display transcription preview with formatting"""
+    st.subheader("🎵 Audio Transcription")
+
+    # Create expandable transcription view
+    with st.expander("📝 View Full Transcription", expanded=False):
+        st.text_area(
+            "Transcribed Content:",
+            value=transcription_text,
+            height=200,
+            disabled=True
+        )
+
+    # Show first few lines as preview
+    lines = transcription_text.split('\n')[:5]
+    preview = '\n'.join(lines)
+
+    ellipsis = '...' if len(transcription_text.split('\n')) > 5 else ''
+
+    st.info(f"""
+        **Transcription Preview (first 5 lines):**
+
+        {preview}
+
+        {ellipsis}
+        """)
+
+
 def display_analysis_results(data):
     """Display comprehensive analysis results"""
     if 'error' in data:
@@ -260,6 +313,18 @@ def display_analysis_results(data):
         return
 
     df = pd.DataFrame(utterances)
+    file_type = data.get('file_type', 'text')
+
+    # File type indicator and analysis header
+    file_indicator = display_file_type_indicator(file_type)
+    st.markdown(f"""
+    ### 📊 Analysis Results {file_indicator}
+    **File:** {data.get('original_filename', 'Unknown')} | **Processing Type:** {file_type.title()}
+    """, unsafe_allow_html=True)
+
+    # Show transcription for audio files
+    if file_type == 'audio' and data.get('raw_text'):
+        display_transcription_preview(data.get('raw_text'))
 
     # Main metrics row
     col1, col2, col3, col4 = st.columns(4)
@@ -287,9 +352,9 @@ def display_analysis_results(data):
         )
 
     # Detailed analysis tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Overview", "💬 Conversation Flow", "🎯 Topic Analysis",
-        "📈 Performance Metrics", "📋 Detailed Data"
+        "📈 Performance Metrics", "📋 Detailed Data", "🔧 Processing Info"
     ])
 
     with tab1:
@@ -526,14 +591,89 @@ def display_analysis_results(data):
         else:
             st.warning("No data matches the selected filters.")
 
+    with tab6:
+        st.subheader("🔧 Processing Information")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.info(f"""
+            **File Processing Details:**
+            - **Original Filename:** {data.get('original_filename', 'Unknown')}
+            - **File Type:** {file_type.title()}
+            - **Processing Method:** {'Audio Transcription + Diarization' if file_type == 'audio' else 'Text Parsing'}
+            - **Analysis Version:** {data.get('analysis_version', '2.1.0')}
+            - **Processing Time:** {data.get('analysis_timestamp', 'Unknown')}
+            """)
+
+        with col2:
+            if file_type == 'audio':
+                st.success("""
+                **Audio Processing Pipeline:**
+                1. 🎵 Audio file upload
+                2. 🔄 Format conversion (if needed)
+                3. 🎙️ Speech-to-text transcription
+                4. 👥 Speaker diarization
+                5. 🔗 Transcript-speaker alignment
+                6. 🏷️ Role mapping (Agent/Customer)
+                7. 🧠 AI sentiment & intent analysis
+                """)
+            else:
+                st.success("""
+                **Text Processing Pipeline:**
+                1. 📁 Text file upload
+                2. 📝 Format validation
+                3. 🧹 Text preprocessing
+                4. 👥 Speaker extraction
+                5. 🧠 AI sentiment & intent analysis
+                6. 📊 Performance metrics calculation
+                """)
+
+        # Raw data preview
+        if st.checkbox("Show Raw Analysis Data", help="Display the complete analysis JSON"):
+            with st.expander("Raw Analysis JSON", expanded=False):
+                st.json(data)
+
 
 def check_api_health():
     """Check if the API is healthy"""
     try:
         response = requests.get(f"{API_URL}/health", timeout=5)
-        return response.status_code == 200
+        if response.status_code == 200:
+            health_data = response.json()
+            return True, health_data.get('supported_formats', [])
+        return False, []
     except:
-        return False
+        return False, []
+
+
+def transcribe_audio_only(uploaded_file):
+    """Transcribe audio file without full analysis"""
+    try:
+        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+
+        response = requests.post(
+            f"{API_URL}/transcribe/",
+            files=files,
+            timeout=120
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('status') == 'success':
+                return result.get('transcription', ''), None
+            else:
+                return None, "Transcription failed"
+        else:
+            error_detail = response.json().get('detail', 'Unknown error')
+            return None, f"Transcription error: {error_detail}"
+
+    except requests.exceptions.Timeout:
+        return None, "Transcription timed out. File might be too large."
+    except requests.exceptions.ConnectionError:
+        return None, "Connection error. Please ensure API server is running."
+    except Exception as e:
+        return None, f"Unexpected error: {str(e)}"
 
 
 # Main application
@@ -541,96 +681,223 @@ def main():
     display_header()
 
     # API health check
-    if not check_api_health():
+    api_healthy, supported_formats = check_api_health()
+
+    if not api_healthy:
         st.error("""
         🚨 **API Connection Error**
 
         The Speech2Sense API is not responding. Please ensure:
         1. The API server is running on localhost:8000
-        2. Run: `python analyzer.py` or `uvicorn analyzer:app --host 0.0.0.0 --port 8000`
+        2. Run: `python main.py` or `uvicorn main:app --host 0.0.0.0 --port 8000`
         3. Check the API logs for errors
         """)
         st.stop()
 
+    # Display supported formats
+    if supported_formats:
+        st.success(f"✅ API Connected | Supported formats: {', '.join(supported_formats)}")
+
     # Sidebar configuration
     with st.sidebar:
-        st.header("📁 Upload Configuration")
+        st.header("📁 File Upload")
 
-        uploaded_file = st.file_uploader(
-            "Choose a conversation file",
-            type=['txt'],
-            help="Upload a .txt file with conversation in 'Speaker: Message' format"
+        # File type selection
+        file_type_option = st.radio(
+            "Choose File Type:",
+            options=["📁 Text File (.txt)", "🎵 Audio File (.wav, .mp3, .mp4)"],
+            help="Select whether you want to upload a text conversation or audio recording"
         )
 
-        domain = st.selectbox(
-            "Select Domain",
-            options=["general", "ecommerce", "healthcare", "real_estate", "customer_support", "technical_support"],
-            help="Choose the domain for specialized analysis"
-        )
+        is_audio_upload = "🎵 Audio" in file_type_option
 
-        st.header("⚙️ Analysis Settings")
+        if is_audio_upload:
+            uploaded_file = st.file_uploader(
+                "Choose an audio file",
+                type=['wav', 'mp3', 'mp4', 'm4a'],
+                help="Upload an audio recording of a conversation between Agent and Customer"
+            )
 
-        show_confidence = st.checkbox("Show Confidence Scores", value=True)
-        show_keywords = st.checkbox("Show Sentiment Keywords", value=False)
-        show_reasoning = st.checkbox("Show AI Reasoning", value=False)
+            # Audio-specific options
+            st.subheader("🎵 Audio Processing Options")
 
-        st.header("📊 Export Options")
+            transcribe_only = st.checkbox(
+                "Transcribe Only",
+                help="Only transcribe audio to text without full analysis"
+            )
+
+            if transcribe_only:
+                st.info("💡 Transcription will show the conversation text without sentiment analysis")
+
+        else:
+            uploaded_file = st.file_uploader(
+                "Choose a conversation file",
+                type=['txt'],
+                help="Upload a .txt file with conversation in 'Speaker: Message' format"
+            )
+
+        # Domain selection (for analysis)
+        if not (is_audio_upload and transcribe_only):
+            st.subheader("🏷️ Analysis Configuration")
+            domain = st.selectbox(
+                "Select Domain",
+                options=["general", "ecommerce", "healthcare", "real_estate", "customer_support", "technical_support"],
+                help="Choose the domain for specialized analysis"
+            )
+
+            st.subheader("⚙️ Analysis Settings")
+            show_confidence = st.checkbox("Show Confidence Scores", value=True)
+            show_keywords = st.checkbox("Show Sentiment Keywords", value=False)
+            show_reasoning = st.checkbox("Show AI Reasoning", value=False)
+
+        st.subheader("📊 Export Options")
         export_format = st.selectbox(
             "Export Format",
             options=["CSV", "JSON", "Excel"],
             help="Choose format for data export"
         )
 
+        # Processing info
+        if is_audio_upload:
+            st.subheader("ℹ️ Audio Processing Info")
+            st.info("""
+            **Audio Processing:**
+            - Supports WAV, MP3, MP4 formats
+            - Automatic speaker diarization
+            - AI-powered role mapping
+            - Speech-to-text transcription
+            - Processing time: 30s-2min depending on file size
+            """)
+
     # Main content area
     if uploaded_file:
-        if st.button("🔍 Analyze Conversation", type="primary"):
 
-            with st.spinner("🤖 AI is analyzing your conversation..."):
-                try:
-                    # Prepare files and data for API call
-                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "text/plain")}
-                    data = {"domain": domain}
+        # Handle transcription-only for audio files
+        if is_audio_upload and transcribe_only:
+            if st.button("🎙️ Transcribe Audio", type="primary"):
+                with st.spinner("🎵 Transcribing your audio file..."):
+                    transcription, error = transcribe_audio_only(uploaded_file)
 
-                    # Make API request
-                    response = requests.post(
-                        f"{API_URL}/analyze/",
-                        files=files,
-                        data=data,
-                        timeout=60
-                    )
+                    if transcription:
+                        st.success("✅ Transcription completed successfully!")
 
-                    if response.status_code == 200:
-                        result = response.json()
+                        # Display transcription
+                        st.subheader("📝 Audio Transcription")
+                        st.text_area(
+                            "Transcribed Content:",
+                            value=transcription,
+                            height=300,
+                            help="Copy this text to analyze separately or save for later use"
+                        )
 
-                        if result.get('status') == 'success':
-                            st.success("✅ Analysis completed successfully!")
+                        # Download transcription
+                        st.download_button(
+                            label="📥 Download Transcription",
+                            data=transcription,
+                            file_name=f"transcription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain"
+                        )
 
-                            # Store results in session state
-                            st.session_state['analysis_results'] = result.get('data')
-                            st.session_state['analysis_timestamp'] = datetime.now()
-
-                        else:
-                            st.error("❌ Analysis failed. Please check your file format.")
-
-                    elif response.status_code == 400:
-                        error_detail = response.json().get('detail', 'Unknown error')
-                        st.error(f"❌ Bad Request: {error_detail}")
-
-                    elif response.status_code == 500:
-                        error_detail = response.json().get('detail', 'Internal server error')
-                        st.error(f"❌ Server Error: {error_detail}")
+                        # Option to analyze transcription
+                        if st.button("🔍 Analyze This Transcription"):
+                            st.session_state['transcription_to_analyze'] = transcription
+                            st.rerun()
 
                     else:
-                        st.error(f"❌ Unexpected error: HTTP {response.status_code}")
+                        st.error(f"❌ Transcription failed: {error}")
 
-                except requests.exceptions.Timeout:
-                    st.error("⏱️ Request timed out. The file might be too large or the server is busy.")
+        # Handle full analysis
+        else:
+            # Check if we have transcription to analyze
+            analyze_transcription = st.session_state.get('transcription_to_analyze', None)
 
-                except requests.exceptions.ConnectionError:
-                    st.error("🔌 Connection error. Please ensure the API server is running.")
+            if analyze_transcription:
+                if st.button("🔍 Analyze Transcription", type="primary"):
+                    with st.spinner("🤖 AI is analyzing the transcription..."):
+                        try:
+                            # Create a temporary text file from transcription
+                            temp_file_content = analyze_transcription.encode('utf-8')
+                            files = {"file": ("transcription.txt", temp_file_content, "text/plain")}
+                            data = {"domain": domain}
 
-                except Exception as e:
-                    st.error(f"❌ Unexpected error: {str(e)}")
+                            # Make API request
+                            response = requests.post(
+                                f"{API_URL}/analyze/",
+                                files=files,
+                                data=data,
+                                timeout=60
+                            )
+
+                            if response.status_code == 200:
+                                result = response.json()
+                                if result.get('status') == 'success':
+                                    st.success("✅ Analysis completed successfully!")
+                                    st.session_state['analysis_results'] = result.get('data')
+                                    st.session_state['analysis_timestamp'] = datetime.now()
+                                    # Clear the transcription from session state
+                                    del st.session_state['transcription_to_analyze']
+                                else:
+                                    st.error("❌ Analysis failed.")
+                            else:
+                                error_detail = response.json().get('detail', 'Unknown error')
+                                st.error(f"❌ Analysis Error: {error_detail}")
+
+                        except Exception as e:
+                            st.error(f"❌ Unexpected error: {str(e)}")
+
+            # Regular file analysis
+            elif st.button("🔍 Analyze " + ("Audio" if is_audio_upload else "Conversation"), type="primary"):
+
+                processing_message = "🎵 Processing your audio file..." if is_audio_upload else "🤖 AI is analyzing your conversation..."
+
+                with st.spinner(processing_message):
+                    try:
+                        # Prepare files and data for API call
+                        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                        data = {"domain": domain}
+
+                        # Make API request with longer timeout for audio files
+                        timeout = 120 if is_audio_upload else 60
+                        response = requests.post(
+                            f"{API_URL}/analyze/",
+                            files=files,
+                            data=data,
+                            timeout=timeout
+                        )
+
+                        if response.status_code == 200:
+                            result = response.json()
+
+                            if result.get('status') == 'success':
+                                st.success("✅ Analysis completed successfully!")
+
+                                # Store results in session state
+                                st.session_state['analysis_results'] = result.get('data')
+                                st.session_state['analysis_timestamp'] = datetime.now()
+
+                            else:
+                                st.error("❌ Analysis failed. Please check your file format.")
+
+                        elif response.status_code == 400:
+                            error_detail = response.json().get('detail', 'Unknown error')
+                            st.error(f"❌ Bad Request: {error_detail}")
+
+                        elif response.status_code == 500:
+                            error_detail = response.json().get('detail', 'Internal server error')
+                            st.error(f"❌ Server Error: {error_detail}")
+
+                        else:
+                            st.error(f"❌ Unexpected error: HTTP {response.status_code}")
+
+                    except requests.exceptions.Timeout:
+                        timeout_msg = "Audio processing timed out. The file might be too large." if is_audio_upload else "Request timed out."
+                        st.error(f"⏱️ {timeout_msg}")
+
+                    except requests.exceptions.ConnectionError:
+                        st.error("🔌 Connection error. Please ensure the API server is running.")
+
+                    except Exception as e:
+                        st.error(f"❌ Unexpected error: {str(e)}")
 
     # Display results if available
     if 'analysis_results' in st.session_state:
@@ -652,14 +919,20 @@ def main():
 
         with col1:
             st.info("""
-            **📁 File Format Requirements:**
+            **📁 Text File Format:**
 
-            Upload a .txt file with conversations formatted as:
+            Upload a .txt file with conversations:
             ```
             Customer: I'm having trouble with my order
             Agent: I'd be happy to help you with that
             Customer: Thank you, I appreciate it
             ```
+
+            **🎵 Audio File Support:**
+            - Upload WAV, MP3, or MP4 files
+            - Automatic speech-to-text transcription
+            - Speaker diarization (Agent/Customer)
+            - Works with phone calls, meetings, interviews
 
             **✅ Supported Features:**
             - Multi-speaker conversations
@@ -680,11 +953,90 @@ def main():
             - **Topic Detection**: Automatic categorization
             - **Visual Analytics**: Interactive charts
             - **Export Options**: CSV, JSON, Excel formats
+            - **Audio Processing**: Speech-to-text + analysis
 
             **🚀 Powered by:**
             - Groq LLaMA 3 AI Models
+            - Whisper Speech Recognition
+            - PyAnnote Speaker Diarization
             - Advanced NLP Processing
             - Real-time Analytics Engine
+            """)
+
+        # Audio processing demo
+        st.markdown("---")
+        st.subheader("🎵 Audio Processing Demo")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.info("""
+            **Audio Processing Pipeline:**
+
+            1. **Upload** - WAV, MP3, MP4 files
+            2. **Convert** - Standardize audio format
+            3. **Transcribe** - Speech-to-text using Whisper
+            4. **Diarize** - Identify different speakers
+            5. **Align** - Match text with speakers
+            6. **Map** - Assign Agent/Customer roles
+            7. **Analyze** - Sentiment & intent analysis
+            8. **Report** - Generate comprehensive insights
+            """)
+
+        with col2:
+            st.warning("""
+            **Audio File Requirements:**
+
+            - **Format**: WAV, MP3, MP4, M4A
+            - **Quality**: Clear speech, minimal background noise
+            - **Duration**: Up to 60 minutes recommended
+            - **Speakers**: 2-3 speakers work best
+            - **Language**: English (primary support)
+            - **File Size**: Up to 100MB
+
+            **Tips for Best Results:**
+            - Use headset/microphone recordings
+            - Avoid overlapping speech
+            - Ensure clear audio quality
+            """)
+
+        # Sample files section
+        st.markdown("---")
+        st.subheader("📋 Sample Files")
+
+        # Create sample text file
+        sample_conversation = """Customer: Hi, I'm calling about my recent order. I haven't received it yet and it's been over a week.
+Agent: I'm sorry to hear about the delay with your order. Let me look into this for you right away. Can you please provide me with your order number?
+Customer: Yes, it's ORDER-12345. I placed it last Monday and was told it would arrive within 3-5 business days.
+Agent: Thank you for providing that information. I can see your order here in our system. It looks like there was a delay at our distribution center. I sincerely apologize for this inconvenience.
+Customer: This is really frustrating. I needed these items for an event this weekend.
+Agent: I completely understand your frustration, and I want to make this right for you. Let me see what options we have. I can expedite your shipment at no extra cost and provide you with tracking information.
+Customer: That would be helpful. When can I expect to receive it?
+Agent: With expedited shipping, you should receive your order by tomorrow afternoon. I'm also applying a 20% discount to your account for the inconvenience caused.
+Customer: Thank you, I appreciate you taking care of this so quickly.
+Agent: You're very welcome! Is there anything else I can help you with today?
+Customer: No, that covers everything. Thank you for your help.
+Agent: My pleasure! Have a great day and thank you for your patience."""
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.download_button(
+                label="📥 Download Sample Text File",
+                data=sample_conversation,
+                file_name="sample_conversation.txt",
+                mime="text/plain",
+                help="Download a sample conversation file to test the system"
+            )
+
+        with col2:
+            st.info("""
+            **Sample File Contains:**
+            - Customer service interaction
+            - Multiple sentiment shifts
+            - Problem resolution scenario
+            - Agent performance examples
+            - Various intent categories
             """)
 
 
