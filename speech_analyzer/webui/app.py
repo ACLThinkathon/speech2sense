@@ -857,7 +857,7 @@ def main():
                         data = {"domain": domain}
 
                         # Make API request with longer timeout for audio files
-                        timeout = 120 if is_audio_upload else 60
+                        timeout = 360 if is_audio_upload else 60
                         response = requests.post(
                             f"{API_URL}/analyze/",
                             files=files,
