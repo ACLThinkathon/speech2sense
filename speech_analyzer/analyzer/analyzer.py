@@ -110,7 +110,7 @@ def detect_topics(text: str) -> Dict:
         """
 
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama3-70b-8192",
             messages=[
                 {"role": "system", "content": topic_prompt},
                 {"role": "user", "content": f"Conversation text: {text}"}
@@ -315,7 +315,7 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
                 if client:
                     try:
                         sentiment_response = client.chat.completions.create(
-                            model="llama3-8b-8192",
+                            model="llama3-70b-8192",
                             messages=[system_msg_sentiment, {"role": "user", "content": sentence}],
                             response_format={"type": "json_object"},
                             temperature=0.2
@@ -330,7 +330,7 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
                 if client:
                     try:
                         intent_response = client.chat.completions.create(
-                            model="llama3-8b-8192",
+                            model="llama3-70b-8192",
                             messages=[system_msg_intent, {"role": "user", "content": sentence}],
                             response_format={"type": "json_object"},
                             temperature=0.2
