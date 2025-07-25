@@ -28,7 +28,7 @@ except Exception as e:
 try:
     pipeline = Pipeline.from_pretrained(
         "pyannote/speaker-diarization",
-        use_auth_token="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"
+        use_auth_token="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"
     )
     logger.info("Speaker diarization pipeline loaded successfully")
 except Exception as e:

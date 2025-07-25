@@ -110,7 +110,7 @@ def detect_topics(text: str) -> Dict:
         """
 
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama3-8b-8192",
             messages=[
                 {"role": "system", "content": topic_prompt},
                 {"role": "user", "content": f"Conversation text: {text}"}
@@ -269,6 +269,9 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
         - "extreme negative": angry, highly critical, frustrated
 
         Consider context, tone, and domain-specific language.
+        
+        Classify based on **emotional tone**, even if wording is polite. For example, 
+        'I guess it's fine' might still be negative depending on tone. Interpret sarcasm and indirect emotions.
 
         Return ONLY in this exact JSON format:
         {
@@ -279,6 +282,25 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
             "confidence": float between 0 and 1
         }
         """
+
+        # Few-shot examples for better grounding
+        few_shot_examples = [
+            {"role": "user", "content": "The support was phenomenal! I couldn’t be happier."},
+            {"role": "assistant",
+             "content": '{"sentiment": "extreme positive", "score": 0.95, "reason": "Very enthusiastic and joyful tone"}'},
+            {"role": "user", "content": "It's okay I guess. Nothing special."},
+            {"role": "assistant",
+             "content": '{"sentiment": "neutral", "score": 0.5, "reason": "Factual and indifferent tone"}'},
+            {"role": "user", "content": "Thanks for your help, but I’m still waiting for a resolution."},
+            {"role": "assistant",
+             "content": '{"sentiment": "negative", "score": 0.4, "reason": "Underlying dissatisfaction despite politeness"}'},
+            {"role": "user", "content": "This has been a horrible experience. I will never use this service again."},
+            {"role": "assistant",
+             "content": '{"sentiment": "extreme negative", "score": 0.9, "reason": "Strong frustration and refusal to return"}'},
+            {"role": "user", "content": "Really appreciate the quick fix! Saved my day."},
+            {"role": "assistant",
+             "content": '{"sentiment": "positive", "score": 0.8, "reason": "Gratitude and satisfaction with service"}'}
+        ]
 
         intent_prompt = """
         You are an intelligent intent classification system.
@@ -315,8 +337,8 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
                 if client:
                     try:
                         sentiment_response = client.chat.completions.create(
-                            model="llama3-70b-8192",
-                            messages=[system_msg_sentiment, {"role": "user", "content": sentence}],
+                            model="llama3-8b-8192",
+                            messages=[system_msg_sentiment] + few_shot_examples + [{"role": "user", "content": sentence}],
                             response_format={"type": "json_object"},
                             temperature=0.2
                         )
@@ -330,7 +352,7 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
                 if client:
                     try:
                         intent_response = client.chat.completions.create(
-                            model="llama3-70b-8192",
+                            model="llama3-8b-8192",
                             messages=[system_msg_intent, {"role": "user", "content": sentence}],
                             response_format={"type": "json_object"},
                             temperature=0.2

@@ -9,6 +9,9 @@ import tempfile
 import os
 from datetime import datetime, date
 import traceback
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from analyzer.analyzer import analyze_sentences
 from analyzer.audio_processor import process_audio_file
@@ -122,7 +125,7 @@ def store_analysis_results(db: Session, analysis_data: dict) -> int:
             utterance = Utterance(
                 conversation_id=conversation.id,
                 utterance_id=utterance_data.get('utterance_id'),
-                speaker=utterance_data.get('speaker'),
+                speaker=utterance_data.get('speaker_name', utterance_data.get('speaker')),
                 sentence=utterance_data.get('sentence'),
                 sentiment=utterance_data.get('sentiment'),
                 sentiment_score=utterance_data.get('score'),
