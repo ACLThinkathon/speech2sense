@@ -11,26 +11,41 @@ from mutagen.mp3 import MP3
 import eyed3.mp3.headers as hdr
 from groq import Groq
 from pyannote.audio import Pipeline
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize clients with error handling
+# Initialize clients
 try:
-    groq_api_key = os.getenv("GROQ_API_KEY", "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")
-    client = Groq(api_key=groq_api_key)
-    logger.info("Groq client initialized successfully")
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        logger.warning("GROQ_API_KEY not found in environment variables. "
+                       "Transcription will not be available.")
+        client = None
+    else:
+        client = Groq(api_key=groq_api_key)
+        logger.info("Groq client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Groq client: {str(e)}")
     client = None
 
 try:
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization",
-        use_auth_token="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"
-    )
-    logger.info("Speaker diarization pipeline loaded successfully")
+    huggingface_token = os.getenv("HF_TOKEN")
+    if not huggingface_token:
+        logger.warning("HUGGINGFACE_TOKEN not found in environment variables. "
+                       "Speaker diarization will not be available.")
+        pipeline = None
+    else:
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization",
+            use_auth_token=huggingface_token
+        )
+        logger.info("Speaker diarization pipeline loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load diarization pipeline: {str(e)}")
     pipeline = None
@@ -44,12 +59,12 @@ def rebuild_audio(input_path: str, output_path: str) -> None:
     try:
         cmd = [
             "ffmpeg",
-            "-err_detect", "ignore_err",  # continue past frame errors
-            "-i", input_path,  # input file
-            "-acodec", "pcm_s16le",  # uncompressed 16-bit PCM
-            "-ac", "1",  # mono channel
+            "-err_detect", "ignore_err",
+            "-i", input_path,
+            "-acodec", "pcm_s16le",
+            "-ac", "1",
             "-ar", "16000",  # 16 kHz sample rate
-            "-y", output_path  # overwrite output
+            "-y", output_path
         ]
 
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -78,7 +93,8 @@ def transcribe_audio(audio_file_path: str) -> list:
     Returns list of transcript segments with timestamps
     """
     if not client:
-        raise Exception("Groq client not initialized. Please check your API key.")
+        raise Exception("Groq client not initialized. "
+                        "Please check your GROQ_API_KEY in the .env file.")
 
     try:
         with open(audio_file_path, "rb") as f:
@@ -108,7 +124,8 @@ def perform_speaker_diarization(audio_file_path: str) -> list:
     Returns list of speaker segments
     """
     if not pipeline:
-        logger.warning("Speaker diarization pipeline not available, using fallback")
+        logger.warning("Speaker diarization pipeline not available. "
+                       "Please check your HUGGINGFACE_TOKEN in the .env file.")
         return []
 
     try:
@@ -170,7 +187,7 @@ def map_speakers_to_roles(merged_segments: list) -> list:
     Map speaker IDs to meaningful roles (Agent/Customer)
     Uses simple heuristics to determine roles
     """
-    # Default mapping - can be enhanced with more sophisticated logic
+    # Default mapping
     speaker_mapping = {
         "SPEAKER_00": "Agent",
         "SPEAKER_01": "Customer",
@@ -178,7 +195,7 @@ def map_speakers_to_roles(merged_segments: list) -> list:
         "SPEAKER_UNKNOWN": "Speaker"
     }
 
-    # Enhanced role detection based on content patterns
+    # Role detection based on content patterns
     agent_keywords = ['help', 'assist', 'support', 'service', 'solve', 'resolve', 'company', 'policy']
     customer_keywords = ['problem', 'issue', 'complaint', 'order', 'refund', 'cancel', 'disappointed']
 

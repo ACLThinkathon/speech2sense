@@ -1,290 +1,512 @@
-# Speech2Sense Audio Integration Setup Guide
+# 🎯 Speech2Sense - Advanced Conversation Analytics
 
-## 🎯 Overview
-This updated Speech2Sense system now supports both text and audio file analysis with the following new features:
+<div align="center">
+  <img src="https://img.shields.io/badge/Python-3.8+-blue.svg" alt="Python 3.8+">
+  <img src="https://img.shields.io/badge/FastAPI-Latest-green.svg" alt="FastAPI">
+  <img src="https://img.shields.io/badge/Streamlit-Latest-red.svg" alt="Streamlit">
+  <img src="https://img.shields.io/badge/AI-Powered-purple.svg" alt="AI Powered">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
+</div>
 
-- **Audio File Support**: WAV, MP3, MP4, M4A formats
-- **Speech-to-Text**: Automatic transcription using Groq Whisper
-- **Speaker Diarization**: Automatic Agent/Customer role identification
-- **Enhanced UI**: File type selection and audio-specific processing options
+## 📋 Overview
+
+Speech2Sense is an advanced AI-powered conversation analytics platform that transforms customer service interactions into actionable insights. Supporting both text and audio files, it provides comprehensive analysis including sentiment detection, intent classification, topic categorization, CSAT scoring, and agent performance evaluation.
+
+### 🚀 Key Features
+- **🎵 Audio Processing**: WAV, MP3 file support with automatic transcription
+- **📁 Text Analysis**: Direct conversation text processing
+- **🤖 AI-Powered**: LLaMA 3 and Whisper models for advanced analysis
+- **👥 Speaker Diarization**: Automatic Agent/Customer role identification
+- **📊 Comprehensive Analytics**: Sentiment, intent, topics, CSAT, and performance metrics
+- **🌐 Interactive Dashboard**: Beautiful Streamlit web interface
+- **🔄 RESTful API**: FastAPI backend with comprehensive endpoints
+- **💾 Data Persistence**: SQLite database with full conversation history
+
+### 🏗️ System Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
+│  Streamlit UI   │───▶│   FastAPI        │───▶│  Analysis Engine    │
+│  Port: 8501     │    │   Port: 8000     │    │  • Sentiment        │
+│  • File Upload  │    │  • /analyze/     │    │  • Intent           │
+│  • Visualizations│   │  • /transcribe/  │    │  • Topics           │
+└─────────────────┘    └──────────────────┘    └─────────────────────┘
+                                 │
+                       ┌─────────▼─────────┐
+                       │  Audio Processor  │
+                       │  • Whisper API    │
+                       │  • PyAnnote       │
+                       │  • FFmpeg         │
+                       └───────────────────┘
+```
 
 ## 📋 Prerequisites
 
 ### System Requirements
-- Python 3.8 or higher
-- FFmpeg (for audio processing)
-- At least 4GB RAM (8GB recommended for audio processing)
-- Internet connection (for AI API calls)
+- **Operating System**: Windows 10+, macOS 10.14+, Ubuntu 18.04+
+- **Python**: 3.8 or higher
+- **RAM**: 4GB minimum (8GB recommended for audio processing)
+- **Storage**: 2GB free space for dependencies and models
+- **Network**: Internet connection for AI API calls
 
-### Install System Dependencies
+### Required Accounts
+1. **Groq API Account**: Get free API key from [console.groq.com](https://console.groq.com)
+2. **Hugging Face Account**: Free token from [huggingface.co](https://huggingface.co/settings/tokens)
 
-#### On Ubuntu/Debian:
-```bash
-sudo apt-get update
-sudo apt-get install ffmpeg libsndfile1-dev
+## 🛠️ Installation Guide
+
+### Step 1: System Dependencies
+
+#### Windows Installation
+```powershell
+# Install Chocolatey (if not installed)
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install FFmpeg
+choco install ffmpeg
+
+# Install Git (if not installed)
+choco install git
+
+# Verify installations
+ffmpeg -version
+git --version
+python --version
 ```
 
-#### On macOS:
+#### Linux (Ubuntu/Debian) Installation
 ```bash
-brew install ffmpeg libsndfile
+# Update package list
+sudo apt update
+
+# Install system dependencies
+sudo apt install -y python3 python3-pip python3-venv git ffmpeg libsndfile1-dev
+
+# Verify installations
+ffmpeg -version
+git --version
+python3 --version
 ```
 
-#### On Windows:
-1. Download FFmpeg from https://ffmpeg.org/download.html
-2. Add FFmpeg to your system PATH
-3. Install Microsoft Visual C++ Redistributable
-
-## 🚀 Installation Steps
-
-### 1. Clone and Setup Project
+#### macOS Installation
 ```bash
-git clone <your-repo-url>
+# Install Homebrew (if not installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install dependencies
+brew install python@3.11 git ffmpeg libsndfile
+
+# Verify installations
+ffmpeg -version
+git --version
+python3 --version
+```
+
+### Step 2: Project Setup
+
+#### Clone Repository
+```bash
+# Clone the project
+git clone <your-repository-url>
 cd speech2sense
+
+# Or download and extract ZIP file, then navigate to folder
 ```
 
-### 2. Create Virtual Environment
-```bash
+#### Create Virtual Environment
+
+**Windows:**
+```powershell
+# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Activate virtual environment
+venv\Scripts\activate
+
+# Verify activation (should show (venv) prefix)
 ```
 
-### 3. Install Python Dependencies
+**Linux/macOS:**
 ```bash
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Verify activation (should show (venv) prefix)
+```
+
+### Step 3: Install Python Dependencies
+
+```bash
+# Ensure you're in the project directory with activated virtual environment
+pip install --upgrade pip
+
+# Install all dependencies
 pip install -r requirements.txt
+
+# Verify critical installations
+python -c "import fastapi, streamlit, groq; print('Core packages installed successfully')"
 ```
 
-### 4. Setup Environment Variables
-Create a `.env` file in the project root:
+### Step 4: Environment Configuration
+
+Create `.env` file in project root:
+
+**Windows:**
+```powershell
+# Create .env file
+echo GROQ_API_KEY=your_groq_api_key_here > .env
+echo HF_TOKEN=your_huggingface_token_here >> .env
+```
+
+**Linux/macOS:**
 ```bash
+# Create .env file
+cat > .env << EOF
 GROQ_API_KEY=your_groq_api_key_here
+HF_TOKEN=your_huggingface_token_here
+EOF
 ```
 
-### 5. Initialize Database
+**Replace with your actual API keys:**
+- Get Groq API key from: https://console.groq.com
+- Get HuggingFace token from: https://huggingface.co/settings/tokens
+
+### Step 5: Database Initialization
+
 ```bash
-python -c "from api.database import init_db; init_db()"
+# Initialize database
+python -c "from databaseLib.database import init_db; init_db()"
+
+# Verify database creation
+ls -la speech2sense.db  # Linux/macOS
+dir speech2sense.db     # Windows
 ```
-
-## 🔧 File Structure
-
-After integration, your project structure should look like:
-
-```
-speech2sense/
-├── analyzer/
-│   ├── __init__.py
-│   ├── analyzer.py          # Main analysis engine
-│   ├── audio_processor.py     # NEW: Audio processing module
-├── api/
-│   ├── __init__.py
-│   └── main.py              # NEW: Updated FastAPI with audio support
-├── database/
-│   ├── __init__.py
-│   ├── database.py          # Database configuration
-│   └── models.py            # Database models
-├── webui/
-│   ├── app.py               # NEW: Updated Streamlit dashboard             
-├── requirements.txt         # NEW: Updated dependencies
-├── .env                     # Environment variables
-└── README.md
-```
-
-## 🎵 Audio Processing Features
-
-### Supported Audio Formats
-- **WAV**: Uncompressed, best quality
-- **MP3**: Compressed, good for phone calls
-- **MP4/M4A**: Container format, versatile
-- **Maximum file size**: 100MB recommended
-
-### Audio Processing Pipeline
-1. **File Upload**: Accepts audio files through web interface
-2. **Format Conversion**: Converts to WAV using FFmpeg
-3. **Speech-to-Text**: Transcribes using Groq Whisper API
-4. **Speaker Diarization**: Identifies different speakers using PyAnnote
-5. **Role Mapping**: Maps speakers to Agent/Customer roles
-6. **Analysis**: Performs sentiment and intent analysis
-7. **Results**: Generates comprehensive analytics
-
-### Audio Quality Requirements
-- Clear speech with minimal background noise
-- 2-3 speakers maximum for best results
-- English language (primary support)
-- Avoid overlapping speech
-- Phone/headset recordings preferred
 
 ## 🚀 Running the Application
 
-### 1. Start the FastAPI Server
-```bash
-python api/main.py
-# Or alternatively:
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+### Option 1: Automatic Startup (Recommended)
+
+**Windows:**
+```powershell
+# Make sure you're in the project directory with activated virtual environment
+.\start_all.bat
 ```
 
-### 2. Start the Streamlit Dashboard
+**Linux/macOS:**
 ```bash
+# Make script executable and run
+chmod +x start_all.sh
+./start_all.sh
+```
+
+### Option 2: Manual Startup
+
+#### Terminal 1 - Start FastAPI Backend
+```bash
+# Activate virtual environment
+# Windows: venv\Scripts\activate
+# Linux/macOS: source venv/bin/activate
+
+# Start API server
+python main.py
+
+# Alternative method:
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+#### Terminal 2 - Start Streamlit Frontend
+```bash
+# Open new terminal and activate virtual environment
+# Windows: venv\Scripts\activate
+# Linux/macOS: source venv/bin/activate
+
+# Navigate to project directory
+cd speech2sense
+
+# Start Streamlit dashboard
 streamlit run app.py
 ```
 
-### 3. Access the Application
+### 🌐 Access Application
+
+Once both services are running:
 - **Dashboard**: http://localhost:8501
 - **API Documentation**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/health
+- **API Health Check**: http://localhost:8000/health
 
-## 🎯 Usage Instructions
+## 📖 Usage Guide
 
 ### For Text Files
-1. Select "📁 Text File (.txt)" option
-2. Upload a conversation file with format:
+1. Select "📁 Text File (.txt)" in the dashboard
+2. Upload conversation file with format:
    ```
-   Customer: Message here
-   Agent: Response here
+   Customer: I'm having trouble with my order
+   Agent: I'd be happy to help you with that
+   Customer: Thank you, I appreciate it
    ```
-3. Choose domain and analysis settings
+3. Choose domain (general, ecommerce, healthcare, etc.)
 4. Click "🔍 Analyze Conversation"
 
 ### For Audio Files
-1. Select "🎵 Audio File (.wav, .mp3, .mp4)" option
-2. Upload your audio recording
-3. Choose processing option:
-   - **Full Analysis**: Transcription + sentiment analysis
-   - **Transcribe Only**: Just convert speech to text
-4. Select domain (for full analysis)
+1. Select "🎵 Audio File (.wav, .mp3)" in the dashboard
+2. Upload your audio recording (max 100MB recommended)
+3. Choose processing mode:
+   - **Full Analysis**: Complete transcription + sentiment analysis
+   - **Transcribe Only**: Convert speech to text only
+4. Select domain for analysis
 5. Click "🔍 Analyze Audio" or "🎙️ Transcribe Audio"
 
-## 🔍 API Endpoints
+### Audio File Requirements
+- **Formats**: WAV, MP3
+- **Quality**: Clear speech, minimal background noise
+- **Duration**: Up to 60 minutes (shorter files process faster)
+- **Speakers**: 2-3 speakers recommended for best diarization
+- **Language**: English (primary support)
 
-### New Endpoints
-- `POST /analyze/` - Analyze both text and audio files
-- `POST /transcribe/` - Transcribe audio files only
-- `GET /conversations/` - Get conversation history
-- `GET /conversations/{id}` - Get specific conversation details
+## 🔧 API Usage
 
-### Example API Usage
+### Analyze Endpoint
+```bash
+# Text file analysis
+curl -X POST "http://localhost:8000/analyze/" \
+  -F "file=@conversation.txt" \
+  -F "domain=customer_support"
+
+# Audio file analysis
+curl -X POST "http://localhost:8000/analyze/" \
+  -F "file=@recording.wav" \
+  -F "domain=general"
+```
+
+### Python API Client
 ```python
 import requests
 
-# Analyze audio file
-files = {"file": ("recording.wav", open("recording.wav", "rb"), "audio/wav")}
-data = {"domain": "customer_support"}
-response = requests.post("http://localhost:8000/analyze/", files=files, data=data)
+# Analyze text file
+with open('conversation.txt', 'rb') as f:
+    files = {'file': ('conversation.txt', f, 'text/plain')}
+    data = {'domain': 'customer_support'}
+    response = requests.post('http://localhost:8000/analyze/', files=files, data=data)
+    result = response.json()
 
-# Transcribe only
-files = {"file": ("recording.mp3", open("recording.mp3", "rb"), "audio/mp3")}
-response = requests.post("http://localhost:8000/transcribe/", files=files)
+# Analyze audio file
+with open('recording.wav', 'rb') as f:
+    files = {'file': ('recording.wav', f, 'audio/wav')}
+    data = {'domain': 'general'}
+    response = requests.post('http://localhost:8000/analyze/', files=files, data=data)
+    result = response.json()
+```
+
+## 🐳 Docker Deployment
+
+### Using Docker Compose (Recommended)
+```bash
+# Build and start services
+docker-compose up --build
+
+# Run in background
+docker-compose up -d --build
+
+# Stop services
+docker-compose down
+```
+
+### Manual Docker Build
+```bash
+# Build images
+docker build -t speech2sense-api -f Dockerfile.api .
+docker build -t speech2sense-ui -f Dockerfile.ui .
+
+# Run containers
+docker run -d --name speech2sense-api -p 8000:8000 speech2sense-api
+docker run -d --name speech2sense-ui -p 8501:8501 speech2sense-ui
 ```
 
 ## 🛠️ Troubleshooting
 
 ### Common Issues
 
-#### FFmpeg Not Found
+#### "FFmpeg not found" Error
+**Windows:**
+```powershell
+# Reinstall FFmpeg
+choco install ffmpeg -y
+
+# Add to PATH manually if needed
+$env:PATH += ";C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin"
+```
+
+**Linux:**
 ```bash
-# Error: FFmpeg not found
-# Solution: Install FFmpeg and add to PATH
-which ffmpeg  # Should return path to ffmpeg
+# Reinstall FFmpeg
+sudo apt install -y ffmpeg
+
+# Verify installation
+which ffmpeg
+ffmpeg -version
+```
+
+#### "ModuleNotFoundError" for packages
+```bash
+# Ensure virtual environment is activated
+# Windows: venv\Scripts\activate
+# Linux/macOS: source venv/bin/activate
+
+# Reinstall dependencies
+pip install --upgrade -r requirements.txt
+```
+
+#### "Connection refused" API Error
+```bash
+# Check if API server is running
+curl http://localhost:8000/health
+
+# If not running, start API server
+python main.py
 ```
 
 #### Audio Processing Timeout
-```bash
-# Error: Request timed out
-# Solution: Reduce file size or increase timeout
-# Files larger than 50MB may timeout
-```
+- Reduce audio file size (< 50MB recommended)
+- Convert to WAV format beforehand
+- Ensure stable internet connection for API calls
 
-#### PyAnnote Model Download
+#### Poor Transcription Quality
+- Use high-quality audio recordings
+- Minimize background noise
+- Ensure clear speaker separation
+- Use headset/microphone recordings
+
+### Performance Optimization
+
+#### For Large Audio Files
 ```bash
-# First run may take time to download models
-# Models are cached after first download
-# Ensure stable internet connection
+# Convert audio to optimal format
+ffmpeg -i input.mp3 -ar 16000 -ac 1 -f wav output.wav
+
+# This reduces file size and processing time
 ```
 
 #### Memory Issues
+- Close unnecessary applications
+- Process smaller audio segments
+- Restart the application if memory usage is high
+
+### Logs and Debugging
+
+#### Check Application Logs
 ```bash
-# Error: Out of memory during audio processing
-# Solution: 
-# 1. Reduce audio file size
-# 2. Convert to mono channel
-# 3. Reduce sample rate to 16kHz
+# API logs appear in terminal where you started main.py
+# Error logs are saved to analyzer_errors.log
+
+# View error log
+# Windows: type analyzer_errors.log
+# Linux/macOS: cat analyzer_errors.log
 ```
 
-### Audio Quality Issues
-- **Low transcription accuracy**: Improve audio quality, reduce background noise
-- **Poor speaker diarization**: Ensure clear speaker separation, avoid overlapping speech
-- **Incorrect role mapping**: Check if speakers use role-specific keywords
+#### Enable Debug Mode
+```bash
+# Set environment variable for detailed logging
+export DEBUG=true  # Linux/macOS
+set DEBUG=true     # Windows
 
-## 🔒 Security Considerations
+# Then restart the application
+```
 
-### API Keys
-- Store Groq API key in `.env` file
-- Never commit API keys to version control
+## 📊 Sample Files
+
+### Download Sample Files
+The dashboard includes sample conversation files for testing:
+- Sample text conversation (customer service scenario)
+- Processing examples and format guides
+
+### Create Your Own Test Files
+
+**Sample Text File** (`test_conversation.txt`):
+```
+Customer: Hi, I'm calling about my recent order. I haven't received it yet.
+Agent: I'm sorry to hear about the delay. Let me look into this for you right away.
+Customer: Thank you, I appreciate your help.
+Agent: I can see your order was shipped yesterday. You should receive it by tomorrow.
+Customer: That's great news! Thank you for checking on that.
+```
+
+## 🔐 Security Considerations
+
+### API Key Management
+- Never commit `.env` file to version control
 - Use environment variables in production
+- Rotate API keys regularly
+- Monitor API usage and costs
 
 ### File Upload Security
-- Files are processed in temporary directories
-- Temporary files are automatically cleaned up
-- Maximum file size limits are enforced
+- Files are processed in secure temporary directories
+- Automatic cleanup after processing
+- File type validation beyond MIME type checking
+- Size limits to prevent abuse
 
-## 📊 Performance Optimization
+## 📈 Performance Benchmarks
 
-### Audio Processing Performance
-- **Small files (< 5MB)**: ~30 seconds processing time
-- **Medium files (5-20MB)**: ~1-2 minutes processing time
-- **Large files (20-50MB)**: ~2-5 minutes processing time
+### Processing Times (Approximate)
+- **Small text files (< 1KB)**: 2-5 seconds
+- **Medium text files (1-10KB)**: 5-15 seconds
+- **Small audio files (< 5MB)**: 30-60 seconds
+- **Medium audio files (5-20MB)**: 1-3 minutes
+- **Large audio files (20-50MB)**: 3-8 minutes
 
-### Optimization Tips
-1. Convert audio to WAV format beforehand
-2. Use mono channel audio (reduces processing time)
-3. Optimize sample rate to 16kHz for speech
-4. Process files during off-peak hours for better API response
+### Hardware Recommendations
+- **Development**: 4GB RAM, 2 CPU cores
+- **Production**: 8GB+ RAM, 4+ CPU cores
+- **High Volume**: 16GB+ RAM, 8+ CPU cores, SSD storage
 
-## 🧪 Testing
-
-### Test with Sample Files
-1. Use the provided sample text conversation
-2. Record a short 2-minute conversation for audio testing
-3. Test both transcription-only and full analysis modes
-4. Verify speaker diarization accuracy
-
-### API Testing
-```bash
-# Test health endpoint
-curl http://localhost:8000/health
-
-# Test with sample file
-curl -X POST "http://localhost:8000/analyze/" \
-  -F "file=@sample_conversation.txt" \
-  -F "domain=general"
-```
-
-## 📈 Monitoring and Logs
-
-### Log Files
-- Application logs: Check console output
-- Error logs: `analyzer_errors.log`
-- API logs: FastAPI console output
-
-### Monitoring API Health
-- Health check endpoint provides system status
-- Monitor API response times
-- Check disk space for temporary file processing
-
-## 🆘 Support
+## 🆘 Support & Contributing
 
 ### Getting Help
-1. Check this setup guide for common issues
-2. Review application logs for error details
-3. Ensure all dependencies are properly installed
-4. Verify API keys and environment variables
+1. Check this README for common solutions
+2. Review error logs in `analyzer_errors.log`
+3. Ensure all dependencies are correctly installed
+4. Verify API keys in `.env` file
 
-### Performance Issues
-1. Monitor system resources (CPU, RAM, disk)
-2. Check network connectivity for API calls
-3. Optimize audio file formats and sizes
-4. Consider upgrading hardware for large-scale processing
+### Bug Reports
+When reporting issues, please include:
+- Operating system and Python version
+- Full error message and stack trace
+- Steps to reproduce the issue
+- Sample files (if applicable)
+
+### Feature Requests
+We welcome suggestions for:
+- Additional audio formats
+- New analysis metrics
+- UI/UX improvements
+- Performance optimizations
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- **Groq**: For providing fast LLaMA 3 inference and Whisper transcription
+- **Hugging Face**: For PyAnnote speaker diarization models
+- **OpenAI**: For Whisper speech recognition technology
+- **FastAPI**: For the excellent web framework
+- **Streamlit**: For the interactive dashboard framework
+- **SQLAlchemy**: For robust database ORM
 
 ---
 
-## 🎉 You're Ready!
+## 🎉 Quick Start Summary
 
-Your Speech2Sense system now supports both text and audio analysis. Upload your first audio file and experience AI-powered conversation analytics with automatic transcription and speaker identification!
+1. **Install System Dependencies**: FFmpeg, Python 3.8+
+2. **Clone Repository**: `git clone <repo-url>`
+3. **Setup Environment**: Create virtual environment and install requirements
+4. **Configure API Keys**: Create `.env` file with Groq and HuggingFace tokens
+5. **Initialize Database**: Run database setup command
+6. **Start Services**: Use `start_all.bat` (Windows) or `start_all.sh` (Linux/macOS)
+7. **Access Dashboard**: Open http://localhost:8501
+8. **Upload & Analyze**: Choose text or audio files and get AI-powered insights!
+
+**Need help? Check the troubleshooting section or review the logs for detailed error information.**

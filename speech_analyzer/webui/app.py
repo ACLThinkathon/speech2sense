@@ -75,7 +75,7 @@ def display_header():
     <div class="main-header">
         <h1>🎯 Speech2Sense Analytics Dashboard</h1>
         <p>Advanced Conversation Analytics with AI-Powered Insights</p>
-        <p>📁 Upload Text Files | 🎵 Upload Audio Files (WAV, MP3, MP4)</p>
+        <p>📁 Upload Text Files | 🎵 Upload Audio Files (WAV, MP3)</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -286,19 +286,19 @@ def display_transcription_preview(transcription_text):
             disabled=True
         )
 
-    # Show first few lines as preview
-    lines = transcription_text.split('\n')[:5]
-    preview = '\n'.join(lines)
-
-    ellipsis = '...' if len(transcription_text.split('\n')) > 5 else ''
-
-    st.info(f"""
-        **Transcription Preview (first 5 lines):**
-
-        {preview}
-
-        {ellipsis}
-        """)
+    # # Show first few lines as preview
+    # lines = transcription_text.split('\n')[:5]
+    # preview = '\n'.join(lines)
+    #
+    # ellipsis = '...' if len(transcription_text.split('\n')) > 5 else ''
+    #
+    # st.info(f"""
+    #     **Transcription Preview (first 5 lines):**
+    #
+    #     {preview}
+    #
+    #     {ellipsis}
+    #     """)
 
 
 def display_analysis_results(data):
@@ -705,7 +705,7 @@ def main():
         # File type selection
         file_type_option = st.radio(
             "Choose File Type:",
-            options=["📁 Text File (.txt)", "🎵 Audio File (.wav, .mp3, .mp4)"],
+            options=["📁 Text File (.txt)", "🎵 Audio File (.wav, .mp3)"],
             help="Select whether you want to upload a text conversation or audio recording"
         )
 
@@ -714,7 +714,7 @@ def main():
         if is_audio_upload:
             uploaded_file = st.file_uploader(
                 "Choose an audio file",
-                type=['wav', 'mp3', 'mp4', 'm4a'],
+                type=['wav', 'mp3'],
                 help="Upload an audio recording of a conversation between Agent and Customer"
             )
 
@@ -762,7 +762,7 @@ def main():
             st.subheader("ℹ️ Audio Processing Info")
             st.info("""
             **Audio Processing:**
-            - Supports WAV, MP3, MP4 formats
+            - Supports WAV, MP3 formats
             - Automatic speaker diarization
             - AI-powered role mapping
             - Speech-to-text transcription
@@ -929,7 +929,7 @@ def main():
             ```
 
             **🎵 Audio File Support:**
-            - Upload WAV, MP3, or MP4 files
+            - Upload WAV or MP3 files
             - Automatic speech-to-text transcription
             - Speaker diarization (Agent/Customer)
             - Works with phone calls, meetings, interviews
@@ -973,7 +973,7 @@ def main():
             st.info("""
             **Audio Processing Pipeline:**
 
-            1. **Upload** - WAV, MP3, MP4 files
+            1. **Upload** - WAV, MP3 files
             2. **Convert** - Standardize audio format
             3. **Transcribe** - Speech-to-text using Whisper
             4. **Diarize** - Identify different speakers
@@ -987,7 +987,7 @@ def main():
             st.warning("""
             **Audio File Requirements:**
 
-            - **Format**: WAV, MP3, MP4, M4A
+            - **Format**: WAV, MP3
             - **Quality**: Clear speech, minimal background noise
             - **Duration**: Up to 60 minutes recommended
             - **Speakers**: 2-3 speakers work best

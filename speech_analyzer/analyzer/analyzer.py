@@ -6,10 +6,15 @@ import uvicorn
 import logging
 import json
 import re
+import os
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
+from dotenv import load_dotenv
 
-# Enhanced logging configuration
+# Load environment variables from .env file
+load_dotenv()
+
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -31,9 +36,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Groq client with error handling
+# Initialize Groq client
 try:
-    client = Groq(api_key="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")
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY not found in environment variables")
+
+    client = Groq(api_key=groq_api_key)
     logger.info("Groq client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Groq client: {str(e)}")
@@ -269,7 +278,7 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
         - "extreme negative": angry, highly critical, frustrated
 
         Consider context, tone, and domain-specific language.
-        
+
         Classify based on **emotional tone**, even if wording is polite. For example, 
         'I guess it's fine' might still be negative depending on tone. Interpret sarcasm and indirect emotions.
 
@@ -285,13 +294,13 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
 
         # Few-shot examples for better grounding
         few_shot_examples = [
-            {"role": "user", "content": "The support was phenomenal! I couldn’t be happier."},
+            {"role": "user", "content": "The support was phenomenal! I couldn't be happier."},
             {"role": "assistant",
              "content": '{"sentiment": "extreme positive", "score": 0.95, "reason": "Very enthusiastic and joyful tone"}'},
             {"role": "user", "content": "It's okay I guess. Nothing special."},
             {"role": "assistant",
              "content": '{"sentiment": "neutral", "score": 0.5, "reason": "Factual and indifferent tone"}'},
-            {"role": "user", "content": "Thanks for your help, but I’m still waiting for a resolution."},
+            {"role": "user", "content": "Thanks for your help, but I'm still waiting for a resolution."},
             {"role": "assistant",
              "content": '{"sentiment": "negative", "score": 0.4, "reason": "Underlying dissatisfaction despite politeness"}'},
             {"role": "user", "content": "This has been a horrible experience. I will never use this service again."},
@@ -338,7 +347,8 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
                     try:
                         sentiment_response = client.chat.completions.create(
                             model="llama3-8b-8192",
-                            messages=[system_msg_sentiment] + few_shot_examples + [{"role": "user", "content": sentence}],
+                            messages=[system_msg_sentiment] + few_shot_examples + [
+                                {"role": "user", "content": sentence}],
                             response_format={"type": "json_object"},
                             temperature=0.2
                         )
