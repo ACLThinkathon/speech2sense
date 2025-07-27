@@ -41,8 +41,7 @@ try:
     groq_api_key = os.getenv("GROQ_API_KEY")
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY not found in environment variables")
-
-    client = Groq(api_key=groq_api_key)
+    client = Groq(api_key="")
     logger.info("Groq client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Groq client: {str(e)}")
@@ -142,6 +141,25 @@ def detect_topics(text: str) -> Dict:
         }
 
 
+def normalize_sentiment_score(sentiment_label: str, raw_score: float) -> float:
+    """Normalize sentiment score to match the sentiment label"""
+    sentiment_label = sentiment_label.lower()
+
+    # Map sentiment labels to appropriate score ranges
+    if sentiment_label == "extreme positive":
+        return max(0.85, min(1.0, raw_score)) if raw_score > 0.5 else 0.9
+    elif sentiment_label == "positive":
+        return max(0.65, min(0.84, raw_score)) if raw_score > 0.5 else 0.75
+    elif sentiment_label == "neutral":
+        return max(0.45, min(0.64, raw_score)) if abs(raw_score - 0.5) < 0.15 else 0.5
+    elif sentiment_label == "negative":
+        return min(0.35, max(0.15, raw_score)) if raw_score < 0.5 else 0.25
+    elif sentiment_label == "extreme negative":
+        return min(0.14, max(0.0, raw_score)) if raw_score < 0.5 else 0.1
+    else:
+        return raw_score  # fallback to original score
+
+
 def calculate_csat_score(utterances: List[Dict]) -> Dict:
     """Calculate CSAT score based on customer sentiment and resolution indicators"""
     try:
@@ -150,34 +168,55 @@ def calculate_csat_score(utterances: List[Dict]) -> Dict:
         if not customer_utterances:
             return {"csat_score": 0, "csat_rating": "No customer data", "methodology": "No customer utterances found"}
 
-        # Weight recent utterances more heavily
+        # Calculate weighted score with proper recency bias and normalized scores
         total_weighted_score = 0
         total_weight = 0
 
         for i, utterance in enumerate(customer_utterances):
-            weight = 1 + (i / len(customer_utterances)) * 0.5  # Later utterances get more weight
-            score = utterance.get('score', 0.5)
-            total_weighted_score += score * weight
+            # Progressive weighting: later utterances get more weight (1.0 to 2.5)
+            weight = 1.0 + (i / max(1, len(customer_utterances) - 1)) * 1.5
+
+            # Get normalized score based on sentiment label
+            sentiment_label = utterance.get('sentiment', 'neutral')
+            raw_score = utterance.get('score', 0.5)
+            normalized_score = normalize_sentiment_score(sentiment_label, raw_score)
+
+            total_weighted_score += normalized_score * weight
             total_weight += weight
 
-        csat_score = (total_weighted_score / total_weight) * 100 if total_weight > 0 else 50
+        # Calculate final CSAT score (0-100 scale)
+        if total_weight > 0:
+            avg_score = total_weighted_score / total_weight
+            csat_score = avg_score * 100
+        else:
+            csat_score = 50
 
-        # Determine CSAT rating
+        # Determine CSAT rating with appropriate thresholds
         if csat_score >= 80:
             csat_rating = "Excellent"
-        elif csat_score >= 70:
+        elif csat_score >= 65:
             csat_rating = "Good"
-        elif csat_score >= 60:
+        elif csat_score >= 50:
             csat_rating = "Satisfactory"
-        elif csat_score >= 40:
+        elif csat_score >= 30:
             csat_rating = "Poor"
         else:
             csat_rating = "Very Poor"
 
+        # Additional analysis for context
+        sentiment_distribution = {}
+        for utterance in customer_utterances:
+            sentiment = utterance.get('sentiment', 'neutral')
+            sentiment_distribution[sentiment] = sentiment_distribution.get(sentiment, 0) + 1
+
         return {
             "csat_score": round(csat_score, 1),
             "csat_rating": csat_rating,
-            "methodology": "Weighted average of customer sentiment scores with recency bias"
+            "methodology": f"Weighted average of {len(customer_utterances)} customer sentiment scores with recency bias and normalization",
+            "customer_utterances_count": len(customer_utterances),
+            "sentiment_distribution": sentiment_distribution,
+            "final_customer_sentiment": customer_utterances[-1].get('sentiment',
+                                                                    'neutral') if customer_utterances else 'none'
         }
 
     except Exception as e:
@@ -194,12 +233,20 @@ def calculate_agent_performance(utterances: List[Dict]) -> Dict:
         if not agent_utterances:
             return {"error": "No agent utterances found for performance analysis"}
 
-        # Agent sentiment consistency
-        agent_scores = [u.get('score', 0.5) for u in agent_utterances]
-        avg_agent_sentiment = sum(agent_scores) / len(agent_scores)
+        # 1. Agent sentiment consistency (normalized scores)
+        agent_normalized_scores = []
+        for utterance in agent_utterances:
+            sentiment_label = utterance.get('sentiment', 'neutral')
+            raw_score = utterance.get('score', 0.5)
+            normalized_score = normalize_sentiment_score(sentiment_label, raw_score)
+            agent_normalized_scores.append(normalized_score)
 
-        # Response quality indicators
-        positive_keywords = ['help', 'assist', 'solve', 'resolve', 'understand', 'sorry', 'apologize']
+        avg_agent_sentiment = sum(agent_normalized_scores) / len(agent_normalized_scores)
+
+        # 2. Response quality indicators (professional keywords)
+        positive_keywords = ['help', 'assist', 'solve', 'resolve', 'understand', 'sorry', 'apologize',
+                             'thank', 'please', 'certainly', 'absolutely', 'definitely', 'glad', 'happy',
+                             'everything', 'right', 'fix', 'support']
         professional_responses = 0
 
         for utterance in agent_utterances:
@@ -209,28 +256,64 @@ def calculate_agent_performance(utterances: List[Dict]) -> Dict:
 
         professionalism_score = (professional_responses / len(agent_utterances)) * 100
 
-        # Customer sentiment improvement (first vs last)
+        # 3. Customer sentiment improvement using normalized scores
         customer_improvement = 0
         if len(customer_utterances) >= 2:
-            first_customer_score = customer_utterances[0].get('score', 0.5)
-            last_customer_score = customer_utterances[-1].get('score', 0.5)
-            customer_improvement = ((last_customer_score - first_customer_score) / first_customer_score) * 100
+            # Get normalized scores for first and last customer utterances
+            first_sentiment = customer_utterances[0].get('sentiment', 'neutral')
+            first_raw_score = customer_utterances[0].get('score', 0.5)
+            first_normalized = normalize_sentiment_score(first_sentiment, first_raw_score)
 
-        # Overall performance score
-        performance_score = (
-                                    avg_agent_sentiment * 0.4 +
-                                    (professionalism_score / 100) * 0.3 +
-                                    max(0, (50 + customer_improvement) / 100) * 0.3
-                            ) * 100
+            last_sentiment = customer_utterances[-1].get('sentiment', 'neutral')
+            last_raw_score = customer_utterances[-1].get('score', 0.5)
+            last_normalized = normalize_sentiment_score(last_sentiment, last_raw_score)
 
-        # Performance rating
-        if performance_score >= 85:
+            # Calculate improvement as absolute change
+            customer_improvement = (last_normalized - first_normalized) * 100
+
+        elif len(customer_utterances) == 1:
+            # Single customer utterance - penalize if negative
+            sentiment = customer_utterances[0].get('sentiment', 'neutral')
+            if sentiment in ['negative', 'extreme negative']:
+                customer_improvement = -25
+            else:
+                customer_improvement = 0
+
+        # 4. Issue resolution indicator based on final customer sentiment
+        resolution_score = 50  # Default neutral
+        if customer_utterances:
+            final_customer_sentiment = customer_utterances[-1].get('sentiment', 'neutral')
+
+            if final_customer_sentiment == 'extreme positive':
+                resolution_score = 95
+            elif final_customer_sentiment == 'positive':
+                resolution_score = 80
+            elif final_customer_sentiment == 'neutral':
+                resolution_score = 60
+            elif final_customer_sentiment == 'negative':
+                resolution_score = 25
+            else:  # extreme negative
+                resolution_score = 10
+
+        # 5. Calculate overall performance score with balanced weighting
+        agent_component = avg_agent_sentiment * 100 * 0.30  # Agent professionalism (30%)
+        professional_component = professionalism_score * 0.30  # Professional language (30%)
+        improvement_component = max(0, 50 + customer_improvement) * 0.20  # Customer improvement (20%)
+        resolution_component = resolution_score * 0.20  # Issue resolution (20%)
+
+        performance_score = agent_component + professional_component + improvement_component + resolution_component
+
+        # Ensure score is within bounds
+        performance_score = max(0, min(100, performance_score))
+
+        # Performance rating with adjusted thresholds
+        if performance_score >= 80:
             rating = "Excellent"
-        elif performance_score >= 75:
-            rating = "Good"
         elif performance_score >= 65:
-            rating = "Satisfactory"
+            rating = "Good"
         elif performance_score >= 50:
+            rating = "Satisfactory"
+        elif performance_score >= 35:
             rating = "Needs Improvement"
         else:
             rating = "Poor"
@@ -241,8 +324,15 @@ def calculate_agent_performance(utterances: List[Dict]) -> Dict:
             "agent_sentiment_avg": round(avg_agent_sentiment, 2),
             "professionalism_score": round(professionalism_score, 1),
             "customer_sentiment_improvement": round(customer_improvement, 1),
+            "resolution_score": round(resolution_score, 1),
             "total_responses": len(agent_utterances),
-            "professional_responses": professional_responses
+            "professional_responses": professional_responses,
+            "metrics_breakdown": {
+                "agent_professionalism": round(agent_component, 1),
+                "professional_language": round(professional_component, 1),
+                "customer_improvement": round(improvement_component, 1),
+                "issue_resolution": round(resolution_component, 1)
+            }
         }
 
     except Exception as e:
