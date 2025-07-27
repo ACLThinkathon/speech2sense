@@ -103,7 +103,7 @@ st.markdown("""
 
     .main-header h1 {
         font-size: var(--header-font-size);
-        font-weight: 700;
+        font-weight: 400;
         margin-bottom: 1rem;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         position: relative;
@@ -142,7 +142,7 @@ st.markdown("""
     scrollbar-width: thin;
         background: linear-gradient(135deg, rgba(255, 182, 193, 0.8), rgba(255, 192, 203, 0.6));
         backdrop-filter: blur(10px);
-        padding: clamp(1rem, 2vw, 2rem);
+        padding: clamp(0.5rem, 1.5vw, 1.2rem);
         border-radius: 16px;
         box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         text-align: center;
@@ -150,7 +150,7 @@ st.markdown("""
         transition: all 0.3s ease;
         position: relative;
         overflow: hidden;
-        height: clamp(250px, 25vw + 200px, 320px) !important;
+        height: clamp(180px, 20vw + 150px, 260px) !important;
         width: 100% !important;
         display: flex;
         flex-direction: column;
@@ -206,7 +206,7 @@ st.markdown("""
     white-space: normal;
     height: auto;
         font-size: var(--card-title-size);
-        font-weight: 600;
+        font-weight: 400;
         margin: 0.5rem 0;
         color: #333;
         z-index: 1;
@@ -231,7 +231,7 @@ st.markdown("""
     white-space: normal;
     height: auto;
         font-size: var(--card-value-size);
-        font-weight: 700;
+        font-weight: 400;
         margin: 0.5rem 0;
         color: #333;
         z-index: 1;
@@ -251,14 +251,18 @@ st.markdown("""
     /* Subtitle - responsive text handling */
     .uniform-card h4 {
         font-size: var(--card-subtitle-size);
-        font-weight: 500;
+        font-weight: 400;
         margin: 0.3rem 0;
         color: #555;
         z-index: 1;
         position: relative;
         line-height: 1.2;
         flex-shrink: 0;
-        height: clamp(25px, 4vw, 35px);
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        white-space: normal !important;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -266,7 +270,6 @@ st.markdown("""
         box-shadow: none !important;
         text-align: center;
         word-wrap: break-word;
-        overflow: hidden;
         padding: 0 0.25rem;
     }
 
@@ -287,9 +290,11 @@ st.markdown("""
         box-shadow: none !important;
         padding: 0 0.5rem;
         word-wrap: break-word;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-height: clamp(50px, 8vw, 80px);
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        white-space: normal !important;
     }
 
     /* Container query support for modern browsers */
@@ -468,7 +473,7 @@ st.markdown("""
         padding: 0.5rem 1rem;
         border-radius: 25px;
         font-size: var(--small-font-size);
-        font-weight: 600;
+        font-weight: 400;
         margin-left: 0.5rem;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         transition: all 0.3s ease;
@@ -589,7 +594,7 @@ st.markdown("""
         border: none;
         border-radius: 12px;
         padding: 0.75rem 2rem;
-        font-weight: 600;
+        font-weight: 400;
         font-size: var(--medium-font-size);
         transition: all 0.3s ease;
         box-shadow: 0 4px 15px rgba(0, 188, 212, 0.4);
@@ -613,7 +618,7 @@ st.markdown("""
         height: 3rem;
         border-radius: 8px;
         color: var(--text-secondary);
-        font-weight: 500;
+        font-weight: 400;
         font-size: var(--base-font-size);
         transition: all 0.3s ease;
     }
@@ -849,7 +854,8 @@ def display_total_utterances_card(total_utterances):
 
 def display_primary_topic_card(topic_data):
     """Display primary topic with consistent styling"""
-    primary_topic = topic_data.get('primary_topic', 'Unknown')
+    primary_topic_raw = topic_data.get('primary_topic', 'Unknown')
+    primary_topic = primary_topic_raw.replace('_', ' ').title()
     confidence = topic_data.get('confidence', 0)
 
     st.markdown(f"""
