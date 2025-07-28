@@ -1,6 +1,51 @@
+# Core FastAPI and web framework dependencies
+fastapi
+uvicorn
+python-multipart
+requests
+
+# Streamlit for dashboard
 streamlit
-transformers
-torch
+plotly
 pandas
-matplotlib
-scikit-learn
+numpy==1.26.4
+
+# Database
+sqlalchemy
+# sqlite3
+
+# AI and ML dependencies
+groq
+openai
+
+# Audio processing dependencies
+pyannote.audio
+torch==2.2.2
+torchaudio
+whisper-openai
+
+# Audio file handling
+mutagen
+eyed3
+pydub
+
+# System dependencies (ensure these are installed via system package manager)
+# ffmpeg (install via: apt-get install ffmpeg or brew install ffmpeg)
+# libsndfile1 (install via: apt-get install libsndfile1-dev)
+
+# Utility dependencies
+python-dotenv
+logging
+# tempfile
+# subprocess
+argparse
+datetime
+typing
+# json
+# os
+# io
+
+# Optional: for enhanced audio processing
+# librosa
+# scipy
+# soundfile
