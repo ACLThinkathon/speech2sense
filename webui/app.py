@@ -140,7 +140,7 @@ st.markdown("""
     .uniform-card {
     overflow-y: auto;
     scrollbar-width: thin;
-        background: linear-gradient(135deg, rgba(255, 182, 193, 0.8), rgba(255, 192, 203, 0.6));
+        background: linear-gradient(135deg, #d8c4f3, #c2e0f7);
         backdrop-filter: blur(10px);
         padding: clamp(0.5rem, 1.5vw, 1.2rem);
         border-radius: 16px;
@@ -175,7 +175,7 @@ st.markdown("""
     /* Hover effect with smooth animation */
     .uniform-card:hover {
         transform: translateY(-8px);
-        background: linear-gradient(135deg, rgba(255, 182, 193, 0.9), rgba(255, 192, 203, 0.7));
+        background: linear-gradient(135deg, #e2d4f5, #d3ecfb);
         box-shadow: 0 15px 40px rgba(0,0,0,0.15);
     }
 
@@ -808,9 +808,21 @@ def display_csat_card(csat_data):
     score = csat_data.get('csat_score', 0)
     rating = csat_data.get('csat_rating', 'Unknown')
 
+    # Choose emoji based on score
+    if score >= 80:
+        emoji = "😄"
+    elif 60 <= score < 80:
+        emoji = "🙂"
+    elif 40 <= score < 60:
+        emoji = "😐"
+    elif 20 <= score < 40:
+        emoji = "🙁"
+    else:
+        emoji = "😠"
+
     st.markdown(f"""
     <div class="metric-card uniform-card">
-        <div class="feature-icon">😊</div>
+        <div class="feature-icon">{emoji}</div>
         <h3>Customer Satisfaction</h3>
         <h1>{score}/100</h1>
         <h4>{rating}</h4>
