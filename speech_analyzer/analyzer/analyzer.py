@@ -41,7 +41,7 @@ try:
     groq_api_key = os.getenv("GROQ_API_KEY")
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY not found in environment variables")
-    client = Groq(api_key="")
+    client = Groq(api_key=groq_api_key)
     logger.info("Groq client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Groq client: {str(e)}")
