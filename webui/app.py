@@ -41,7 +41,7 @@ st.markdown("""
         --xlarge-font-size: clamp(1.2rem, 2vw + 1rem, 2rem);
         --header-font-size: clamp(2rem, 4vw + 1rem, 4rem);
         --card-title-size: clamp(0.85rem, 1vw + 0.5rem, 1.1rem);
-        --card-value-size: clamp(1rem, 1.5vw + 0.6rem, 1.6rem);
+        --card-value-size: clamp(0.75rem, 1vw + 0.3rem, 1rem);
         --card-subtitle-size: clamp(0.8rem, 0.9vw + 0.4rem, 1rem);
         --card-description-size: clamp(0.7rem, 0.8vw + 0.3rem, 0.85rem);
     }
