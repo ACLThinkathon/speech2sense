@@ -1,0 +1,13 @@
+agent: Hello, thank you for contacting our support. How can I assist you today?
+customer: About time! I've been waiting forever. You people are so slow!
+agent: I'm truly sorry to hear that. Let me see how I can help resolve the issue right away.
+customer: Every time I call, it's the same nonsense. Your service is pathetic!
+agent: I completely understand your frustration. Please give me a moment to check your account details.
+customer: You better fix it this time, or I’m switching to another provider.
+agent: I’ve found the issue—it looks like there was a technical glitch in your last transaction. I’ve corrected it now.
+customer: Finally! Took you long enough.
+agent: I’ve also added a compensation credit to your account for the inconvenience.
+customer: Whatever.
+agent: Is there anything else I can help you with today?
+customer: No, just hope I don't have to deal with this crap again.
+agent: Thank you for your time and patience. I hope you have a better experience moving forward.

@@ -1,0 +1,8 @@
+agent: Hi! Welcome to support. How can I help you today?
+customer: I'm really upset. I’ve reported this issue twice already and nothing has been fixed.
+agent: I’m very sorry to hear that. Let me take another look into it right away.
+customer: Honestly, this is starting to feel like a waste of my time.
+agent: I completely understand. I’ve identified the problem and applied the fix — it should work now.
+customer: Oh, I see. Yes, it's working fine now. Thanks for sorting that out.
+agent: You’re very welcome. I appreciate your patience throughout this.
+customer: Well, I hope it stays fixed. But thank you for finally resolving it.
