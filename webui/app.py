@@ -810,14 +810,19 @@ def display_csat_card(csat_data):
 
     # Choose emoji based on score
     if score >= 80:
+        rating = "Excellent"
         emoji = "😄"
-    elif 60 <= score < 80:
+    elif score >= 65:
+        rating = "Good"
         emoji = "🙂"
-    elif 40 <= score < 60:
+    elif score >= 50:
+        rating = "Satisfactory"
         emoji = "😐"
-    elif 20 <= score < 40:
+    elif score >= 30:
+        rating = "Poor"
         emoji = "🙁"
     else:
+        rating = "Very Poor"
         emoji = "😠"
 
     st.markdown(f"""
