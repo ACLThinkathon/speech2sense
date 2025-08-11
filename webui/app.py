@@ -1545,6 +1545,13 @@ def main():
                 help="Upload an audio recording of a conversation between Agent and Customer"
             )
 
+            # 🎵 Audio preview with play/stop icon
+            if uploaded_file is not None:
+                file_type = uploaded_file.type
+                if "audio" in file_type:
+                    st.markdown("### 🎵 Listen to Uploaded Audio")
+                    st.audio(uploaded_file, format=file_type)
+
             # Audio-specific options
             st.subheader("🎙️ Audio Processing Options")
 
