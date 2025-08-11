@@ -23,6 +23,7 @@ pyannote.audio
 torch==2.2.2
 torchaudio
 whisper-openai
+soundfile==0.13.1
 
 # Audio file handling
 mutagen

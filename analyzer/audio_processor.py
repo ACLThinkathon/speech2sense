@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 import logging
 import traceback
-from typing import Optional
+import soundfile as sf
 from mutagen import File
 from mutagen.mp4 import MP4
 from mutagen.wave import WAVE
@@ -42,7 +42,7 @@ try:
         pipeline = None
     else:
         pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization",
+            "pyannote/speaker-diarization-3.1",
             use_auth_token=huggingface_token
         )
         logger.info("Speaker diarization pipeline loaded successfully")
@@ -87,35 +87,62 @@ def has_mp3_frame(file_path: str) -> bool:
         return False
 
 
-def transcribe_audio(audio_file_path: str) -> list:
+def split_audio_to_segments(audio_file_path, speaker_segments):
+    """Split audio into speaker turns based on diarization."""
+    audio, sr = sf.read(audio_file_path)
+    audio_segments = []
+    for seg in speaker_segments:
+        start_sample = int(seg['start'] * sr)
+        end_sample = int(seg['end'] * sr)
+        segment_audio = audio[start_sample:end_sample]
+        audio_segments.append({
+            "audio": segment_audio,
+            "start": seg['start'],
+            "end": seg['end'],
+            "speaker": seg['speaker']
+        })
+    return audio_segments, sr
+
+
+def transcribe_speaker_segments(audio_file_path, speaker_segments):
     """
-    Transcribe audio file using Groq Whisper API
-    Returns list of transcript segments with timestamps
+    For each diarization segment, transcribe the corresponding audio and assign it directly to the speaker.
     """
-    if not client:
-        raise Exception("Groq client not initialized. "
-                        "Please check your GROQ_API_KEY in the .env file.")
+    audio_segments, sr = split_audio_to_segments(audio_file_path, speaker_segments)
+    results = []
 
-    try:
-        with open(audio_file_path, "rb") as f:
-            response = client.audio.transcriptions.create(
-                file=f,
-                model="whisper-large-v3-turbo",
-                response_format="verbose_json",
-                timestamp_granularities=["segment"],
-                temperature=0.0
-            )
+    for seg in audio_segments:
+        # Save segment to temp WAV file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+            sf.write(tmp_wav, seg["audio"], sr, format='WAV')
+            temp_name = tmp_wav.name
 
-        if hasattr(response, 'segments') and response.segments:
-            logger.info(f"Transcription completed: {len(response.segments)} segments")
-            return response.segments
-        else:
-            logger.warning("No segments found in transcription response")
-            return []
+        # Now the file handle is closed; re-open for reading
+        try:
+            with open(temp_name, "rb") as f:
+                response = client.audio.transcriptions.create(
+                    file=f,
+                    model="whisper-large-v3-turbo",
+                    response_format="verbose_json",
+                    temperature=0.0
+                )
+                # Extract text from response
+                if hasattr(response, "text"):
+                    text = response.text
+                elif hasattr(response, "segments"):
+                    text = " ".join(subseg["text"] for subseg in response.segments)
+                else:
+                    text = ""
+            results.append({
+                "start": seg["start"],
+                "end": seg["end"],
+                "text": text.strip(),
+                "speaker": seg["speaker"]
+            })
+        finally:
+            os.unlink(temp_name)  # cleanup temp file after processing
 
-    except Exception as e:
-        logger.error(f"Transcription error: {str(e)}")
-        raise Exception(f"Audio transcription failed: {str(e)}")
+    return results
 
 
 def perform_speaker_diarization(audio_file_path: str) -> list:
@@ -129,7 +156,7 @@ def perform_speaker_diarization(audio_file_path: str) -> list:
         return []
 
     try:
-        diarization = pipeline({"uri": "conversation", "audio": audio_file_path})
+        diarization = pipeline({"uri": "conv", "audio": audio_file_path}, num_speakers=2)
 
         speaker_segments = [
             {"start": turn.start, "end": turn.end, "speaker": label}
@@ -144,85 +171,50 @@ def perform_speaker_diarization(audio_file_path: str) -> list:
         return []
 
 
-def align_transcripts_with_speakers(transcript_segments: list, speaker_segments: list) -> list:
-    """
-    Align transcript segments with speaker segments
-    Returns merged segments with speaker information
-    """
-    merged_segments = []
+def map_speakers_to_roles_enhanced(merged_segments: list) -> list:
+    speaker_stats = {}
+    agent_keywords = ['help', 'assist', 'support', 'company', 'policy', 'thank you for calling']  # expand this
+    customer_keywords = ['problem', 'issue', 'my order', 'I need', 'complaint', 'refund']
 
-    for seg in transcript_segments:
-        seg_start = seg.get("start", 0)
-        seg_end = seg.get("end", 0)
-        text = seg.get("text", "").strip()
+    for seg in merged_segments:
+        speaker = seg["speaker"]
+        text = seg["text"].lower()
+        if speaker not in speaker_stats:
+            speaker_stats[speaker] = {"text": [], "duration": 0, "count": 0, "agent_score": 0, "customer_score": 0}
+        speaker_stats[speaker]["text"].append(text)
+        speaker_stats[speaker]["duration"] += seg["end"] - seg["start"]
+        speaker_stats[speaker]["count"] += 1
+        speaker_stats[speaker]["agent_score"] += sum(1 for k in agent_keywords if k in text)
+        speaker_stats[speaker]["customer_score"] += sum(1 for k in customer_keywords if k in text)
 
-        if not text:
-            continue
+    # Determine first speaker
+    first_speaker = merged_segments[0]["speaker"]
 
-        # Find best matching speaker based on time overlap
-        best_speaker = "SPEAKER_UNKNOWN"
-        max_overlap = 0
+    scores = []
+    for sp, stat in speaker_stats.items():
+        score = (
+            stat["agent_score"] - stat["customer_score"],
+            sp == first_speaker,  # is first speaker
+            stat["duration"],  # total speaking time
+        )
+        scores.append((sp, score))
 
-        for sp_seg in speaker_segments:
-            overlap_start = max(seg_start, sp_seg["start"])
-            overlap_end = min(seg_end, sp_seg["end"])
-            overlap_duration = max(0, overlap_end - overlap_start)
+    # Heuristic: Agent usually has more agent_score, speaks first, and/or speaks longer
+    scores_sorted = sorted(scores, key=lambda x: (x[1][0], x[1][1], x[1][2]), reverse=True)
+    if len(scores_sorted) > 1:
+        agent_id = scores_sorted[0][0]
+        customer_id = scores_sorted[1][0]
+    else:
+        agent_id = scores_sorted[0][0]
+        customer_id = agent_id  # fallback
 
-            if overlap_duration > max_overlap:
-                max_overlap = overlap_duration
-                best_speaker = sp_seg["speaker"]
-
-        merged_segments.append({
-            "start": seg_start,
-            "end": seg_end,
-            "text": text,
-            "speaker": best_speaker
-        })
-
-    return merged_segments
-
-
-def map_speakers_to_roles(merged_segments: list) -> list:
-    """
-    Map speaker IDs to meaningful roles (Agent/Customer)
-    Uses simple heuristics to determine roles
-    """
-    # Default mapping
     speaker_mapping = {
-        "SPEAKER_00": "Agent",
-        "SPEAKER_01": "Customer",
-        "SPEAKER_02": "Customer",  # Fallback if more speakers detected
-        "SPEAKER_UNKNOWN": "Speaker"
+        agent_id: "Agent",
+        customer_id: "Customer"
     }
 
-    # Role detection based on content patterns
-    agent_keywords = ['help', 'assist', 'support', 'service', 'solve', 'resolve', 'company', 'policy']
-    customer_keywords = ['problem', 'issue', 'complaint', 'order', 'refund', 'cancel', 'disappointed']
-
-    # Analyze content to improve speaker mapping
-    speaker_content = {}
-    for segment in merged_segments:
-        speaker = segment["speaker"]
-        text = segment["text"].lower()
-
-        if speaker not in speaker_content:
-            speaker_content[speaker] = []
-        speaker_content[speaker].append(text)
-
-    # Determine roles based on content analysis
-    for speaker, texts in speaker_content.items():
-        all_text = " ".join(texts)
-        agent_score = sum(1 for keyword in agent_keywords if keyword in all_text)
-        customer_score = sum(1 for keyword in customer_keywords if keyword in all_text)
-
-        if agent_score > customer_score and speaker in ["SPEAKER_00", "SPEAKER_01"]:
-            speaker_mapping[speaker] = "Agent"
-        elif customer_score > agent_score and speaker in ["SPEAKER_00", "SPEAKER_01"]:
-            speaker_mapping[speaker] = "Customer"
-
-    # Apply mapping
-    for segment in merged_segments:
-        segment["speaker_name"] = speaker_mapping.get(segment["speaker"], segment["speaker"])
+    for seg in merged_segments:
+        seg["speaker_name"] = speaker_mapping.get(seg["speaker"], seg["speaker"])
 
     return merged_segments
 
@@ -276,28 +268,24 @@ def process_audio_file(audio_file_path: str) -> str:
                 logger.error(f"[DEBUG] Audio conversion failed: {str(e)}")
                 processing_file_path = audio_file_path
 
-        # Step 1: Transcribe audio
-        logger.info("[DEBUG] Starting transcription...")
-        transcript_segments = transcribe_audio(processing_file_path)
-        logger.info(f"[DEBUG] Transcript segments: {len(transcript_segments)}")
-
-        if not transcript_segments:
-            raise Exception("[DEBUG] No transcription segments generated")
-
-        # Step 2: Perform speaker diarization
+        # Step 1: Perform speaker diarization
         logger.info("[DEBUG] Starting speaker diarization...")
         speaker_segments = perform_speaker_diarization(processing_file_path)
         logger.info(f"[DEBUG] Speaker segments: {len(speaker_segments)}")
 
-        # Step 3: Align transcripts with speakers
-        logger.info("[DEBUG] Aligning transcripts with speakers...")
-        merged_segments = align_transcripts_with_speakers(transcript_segments, speaker_segments)
+        if not speaker_segments:
+            raise Exception("[DEBUG] No speaker segments generated")
 
-        # Step 4: Map speakers to roles
+        # Step 2: Transcribe each speaker segment separately
+        logger.info("[DEBUG] Starting speaker-specific transcription...")
+        merged_segments = transcribe_speaker_segments(processing_file_path, speaker_segments)
+        logger.info(f"[DEBUG] Speaker-attributed segments: {len(merged_segments)}")
+
+        # Step 3: Map speakers to roles
         logger.info("[DEBUG] Mapping speakers to roles...")
-        final_segments = map_speakers_to_roles(merged_segments)
+        final_segments = map_speakers_to_roles_enhanced(merged_segments)
 
-        # Step 5: Format as conversation text
+        # Step 4: Format as conversation text
         logger.info("[DEBUG] Formatting conversation text...")
         conversation_text = format_conversation_text(final_segments)
 
@@ -322,7 +310,6 @@ def process_audio_file(audio_file_path: str) -> str:
         raise
 
 
-# For backward compatibility and direct script usage
 def main(audio_file_name: str, output_text_file: str = "output_conversation.txt"):
     """
     Process audio file and save conversation to text file
