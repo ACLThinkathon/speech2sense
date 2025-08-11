@@ -1,20 +1,21 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, BackgroundTasks, Form, Request
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
-from typing import Optional
 import json
 import logging
 import tempfile
 import os
-from datetime import datetime, date
 import traceback
 import sys
+import uuid
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, BackgroundTasks, Form, Request
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from typing import Optional
+from datetime import datetime, date
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from analyzer.analyzer import analyze_sentences
-from analyzer.audio_processor import process_audio_file
+from analyzer.audio_processor import process_audio_file, transcribe_audio_only
 from databaseLib.models import (
     Conversation, Utterance, AnalysisResult
 )
@@ -95,6 +96,7 @@ async def log_exceptions(request: Request, call_next):
         logger.error(traceback.format_exc())
         raise e
 
+
 def store_analysis_results(db: Session, analysis_data: dict) -> int:
     try:
         conversation = Conversation(
@@ -112,7 +114,8 @@ def store_analysis_results(db: Session, analysis_data: dict) -> int:
             agent_performance_rating=analysis_data.get('agent_performance', {}).get('rating'),
             agent_sentiment_avg=analysis_data.get('agent_performance', {}).get('agent_sentiment_avg'),
             professionalism_score=analysis_data.get('agent_performance', {}).get('professionalism_score'),
-            customer_sentiment_improvement=analysis_data.get('agent_performance', {}).get('customer_sentiment_improvement'),
+            customer_sentiment_improvement=analysis_data.get('agent_performance', {}).
+            get('customer_sentiment_improvement'),
             total_utterances=analysis_data.get('total_utterances'),
             speakers=analysis_data.get('speakers', [])
         )
@@ -157,6 +160,7 @@ def store_analysis_results(db: Session, analysis_data: dict) -> int:
         logger.error(f"Error storing analysis results: {str(e)}")
         raise
 
+
 # Enhanced Analyze API supporting both audio and text files
 @app.post("/analyze/", response_model=dict)
 async def analyze_conversation(
@@ -194,10 +198,11 @@ async def analyze_conversation(
         if not (is_audio_file or is_text_file):
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file format '{content_type}' with extension '{filename}'. Only .txt, .wav, .mp3, .mp4 supported."
+                detail=f"Unsupported file format '{content_type}' with extension '{filename}'."
+                       f" Only .txt, .wav, .mp3, .mp4 supported."
             )
 
-            text_content = ""
+        text_content = ""
 
         if is_audio_file:
             logger.info("Processing audio file...")
@@ -263,5 +268,95 @@ async def analyze_conversation(
         raise
     except Exception as e:
         logger.error(f"Unexpected error in analyze endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/transcribe/", response_model=dict)
+async def transcribe_audio(
+        file: UploadFile = File(...),
+        db: Session = Depends(get_db)
+):
+    try:
+        content_type = file.content_type
+        filename = file.filename.lower() if file.filename else ""
+
+        logger.info(f"[TRANSCRIBE] Processing file: {file.filename}, Content-Type: {content_type}")
+
+        # Strictly allow audio formats only
+        allowed_audio_types = ["audio/wav", "audio/mp3", "audio/mp4", "audio/mpeg", "audio/x-wav"]
+        allowed_extensions = ('.wav', '.mp3', '.mp4', '.m4a')
+
+        if not (
+            (content_type in allowed_audio_types) or
+            filename.endswith(allowed_extensions)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file format for transcription: '{content_type}'"
+            )
+
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
+            temp_file.write(await file.read())
+            temp_file_path = temp_file.name
+
+        try:
+            # Perform transcription
+            transcription_text = transcribe_audio_only(temp_file_path)
+
+            # Log transcription length
+            char_count = len(transcription_text)
+            word_count = len(transcription_text.split())
+            logger.info(f"[TRANSCRIBE] Transcription length: {char_count} chars, {word_count} words")
+
+            # Generate conversation_id
+            conversation_id = str(uuid.uuid4())
+
+            # Store in DB
+            conversation = Conversation(
+                conversation_id=conversation_id,
+                raw_text=transcription_text,
+                domain="general",  # Always general for transcribe
+                primary_topic=None,
+                topics=[],
+                topic_confidence=None,
+                topic_reasoning=None,
+                csat_score=None,
+                csat_rating=None,
+                csat_methodology=None,
+                agent_performance_score=None,
+                agent_performance_rating=None,
+                agent_sentiment_avg=None,
+                professionalism_score=None,
+                customer_sentiment_improvement=None,
+                total_utterances=None,
+                speakers=[],
+            )
+            db.add(conversation)
+            db.commit()
+            db.refresh(conversation)
+
+            return {
+                "status": "success",
+                "conversation_id": conversation_id,
+                "filename": file.filename,
+                "transcription": transcription_text
+            }
+
+        except Exception as e:
+            logger.error(f"[TRANSCRIBE] Failed: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+        finally:
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[TRANSCRIBE] Unexpected error: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

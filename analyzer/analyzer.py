@@ -5,7 +5,6 @@ from groq import Groq
 import uvicorn
 import logging
 import json
-import re
 import os
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
@@ -212,7 +211,8 @@ def calculate_csat_score(utterances: List[Dict]) -> Dict:
         return {
             "csat_score": round(csat_score, 1),
             "csat_rating": csat_rating,
-            "methodology": f"Weighted average of {len(customer_utterances)} customer sentiment scores with recency bias and normalization",
+            "methodology": f"Weighted average of {len(customer_utterances)} customer sentiment scores with recency "
+                           f"bias and normalization",
             "customer_utterances_count": len(customer_utterances),
             "sentiment_distribution": sentiment_distribution,
             "final_customer_sentiment": customer_utterances[-1].get('sentiment',
@@ -304,7 +304,7 @@ def calculate_agent_performance(utterances: List[Dict]) -> Dict:
         performance_score = agent_component + professional_component + improvement_component + resolution_component
 
         # Ensure score is within bounds
-        performance_score = max(0, min(100, performance_score))
+        performance_score = max(0, min(100, int(performance_score)))
 
         # Performance rating with adjusted thresholds
         if performance_score >= 80:
@@ -386,16 +386,19 @@ def analyze_sentences(text: str, domain: Optional[str] = None) -> Dict:
         few_shot_examples = [
             {"role": "user", "content": "The support was phenomenal! I couldn't be happier."},
             {"role": "assistant",
-             "content": '{"sentiment": "extreme positive", "score": 0.95, "reason": "Very enthusiastic and joyful tone"}'},
+             "content": '{"sentiment": "extreme positive", "score": 0.95, "reason": "Very enthusiastic '
+                        'and joyful tone"}'},
             {"role": "user", "content": "It's okay I guess. Nothing special."},
             {"role": "assistant",
              "content": '{"sentiment": "neutral", "score": 0.5, "reason": "Factual and indifferent tone"}'},
             {"role": "user", "content": "Thanks for your help, but I'm still waiting for a resolution."},
             {"role": "assistant",
-             "content": '{"sentiment": "negative", "score": 0.4, "reason": "Underlying dissatisfaction despite politeness"}'},
+             "content": '{"sentiment": "negative", "score": 0.4, "reason": "Underlying dissatisfaction despite '
+                        'politeness"}'},
             {"role": "user", "content": "This has been a horrible experience. I will never use this service again."},
             {"role": "assistant",
-             "content": '{"sentiment": "extreme negative", "score": 0.9, "reason": "Strong frustration and refusal to return"}'},
+             "content": '{"sentiment": "extreme negative", "score": 0.9, "reason": "Strong frustration and refusal '
+                        'to return"}'},
             {"role": "user", "content": "Really appreciate the quick fix! Saved my day."},
             {"role": "assistant",
              "content": '{"sentiment": "positive", "score": 0.8, "reason": "Gratitude and satisfaction with service"}'}

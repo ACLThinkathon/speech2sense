@@ -49,4 +49,3 @@ typing
 # Optional: for enhanced audio processing
 # librosa
 # scipy
-# soundfile

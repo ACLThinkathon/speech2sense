@@ -2,12 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import requests
-import json
 from datetime import datetime
-import numpy as np
-import io
 
 # Page configuration
 st.set_page_config(
@@ -790,7 +786,7 @@ def display_header():
         <h1>🎯 Speech2Sense Analytics</h1>
         <p>✨ Unlock sentimental AI-powered insights from customer feedback and agent interactions. 
         Fast, accurate, and easy to integrate. ✨</p>
-        <p>📊 Upload Text Files | 🎙️ Upload Audio Files (WAV, MP3) | 🚀 Real-time Analysis</p>
+        <p>📊 Upload Text Files | 🎙️ Upload Audio Files (WAV, MP3, MP4 or M4A) | 🚀 Real-time Analysis</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -806,7 +802,6 @@ def display_file_type_indicator(file_type):
 def display_csat_card(csat_data):
     """Display CSAT score with consistent styling"""
     score = csat_data.get('csat_score', 0)
-    rating = csat_data.get('csat_rating', 'Unknown')
 
     # Choose emoji based on score
     if score >= 80:
@@ -941,9 +936,6 @@ def create_intent_distribution_chart(df):
         'greeting': '#96CEB4',  # Mint green
         'closing': '#FECA57'  # Golden yellow
     }
-
-    # Get colors for the intents in the data
-    colors = [intent_colors.get(intent, '#FF6B9D') for intent in intent_counts.index]
 
     fig = px.bar(
         x=intent_counts.index,
@@ -1212,7 +1204,8 @@ def display_analysis_results(data):
                     st.info(f"""
                     **🎧 Agent Performance:**
                     - 📈 Maintained sentiment: {agent_df['score'].mean():.2f}
-                    - 🎯 Most common intent handled: {agent_df['intent'].mode().iloc[0] if not agent_df['intent'].mode().empty else 'N/A'}
+                    - 🎯 Most common intent handled: {agent_df['intent'].mode().iloc[0] if not agent_df['intent'].
+                            mode().empty else 'N/A'}
                     - 🔄 Response consistency: {agent_df['score'].std():.2f} (lower = more consistent)
                     """)
 
@@ -1427,7 +1420,8 @@ def display_analysis_results(data):
             **📁 File Processing Details:**
             - **📄 Original Filename:** {data.get('original_filename', 'Unknown')}
             - **🔧 File Type:** {file_type.title()}
-            - **⚙️ Processing Method:** {'🎙️ Audio Transcription + Diarization' if file_type == 'audio' else '📝 Text Parsing'}
+            - **⚙️ Processing Method:** {'🎙️ Audio Transcription + Diarization' if file_type == 'audio' 
+            else '📝 Text Parsing'}
             - **🔖 Analysis Version:** {data.get('analysis_version', '2.1.0')}
             - **⏰ Processing Time:** {data.get('analysis_timestamp', 'Unknown')}
             """)
@@ -1532,7 +1526,7 @@ def main():
         # File type selection
         file_type_option = st.radio(
             "🎯 Choose File Type:",
-            options=["📄 Text File (.txt)", "🎙️ Audio File (.wav, .mp3)"],
+            options=["📄 Text File (.txt)", "🎙️ Audio File (.wav, .mp3, .mp4, .m4a))"],
             help="Select whether you want to upload a text conversation or audio recording"
         )
 
@@ -1541,7 +1535,7 @@ def main():
         if is_audio_upload:
             uploaded_file = st.file_uploader(
                 "🎙️ Choose an audio file",
-                type=['wav', 'mp3'],
+                type=['wav', 'mp3', 'mp4', 'm4a'],
                 help="Upload an audio recording of a conversation between Agent and Customer"
             )
 
@@ -1570,33 +1564,12 @@ def main():
                 help="Upload a .txt file with conversation in 'Speaker: Message' format"
             )
 
-        # Domain selection (for analysis)
-        if not (is_audio_upload and transcribe_only):
-            st.subheader("🏷️ Analysis Configuration")
-            domain = st.selectbox(
-                "🎯 Select Domain",
-                options=["general", "ecommerce", "healthcare", "real_estate", "customer_support", "technical_support"],
-                help="Choose the domain for specialized analysis"
-            )
-
-            st.subheader("⚙️ Analysis Settings")
-            show_confidence = st.checkbox("📊 Show Confidence Scores", value=True)
-            show_keywords = st.checkbox("🔍 Show Sentiment Keywords", value=False)
-            show_reasoning = st.checkbox("🧠 Show AI Reasoning", value=False)
-
-        st.subheader("📊 Export Options")
-        export_format = st.selectbox(
-            "💾 Export Format",
-            options=["CSV", "JSON", "Excel"],
-            help="Choose format for data export"
-        )
-
         # Processing info
         if is_audio_upload:
             st.subheader("ℹ️ Audio Processing Info")
             st.info("""
             **🎙️ Audio Processing:**
-            - 🎵 Supports WAV or MP3 formats
+            - 🎵 Supports WAV, MP3, MP4 or M4A formats
             - 👥 Automatic speaker diarization
             - 🤖 AI-powered role mapping
             - 📝 Speech-to-text transcription
@@ -1652,13 +1625,11 @@ def main():
                             # Create a temporary text file from transcription
                             temp_file_content = analyze_transcription.encode('utf-8')
                             files = {"file": ("transcription.txt", temp_file_content, "text/plain")}
-                            data = {"domain": domain}
 
                             # Make API request
                             response = requests.post(
                                 f"{API_URL}/analyze/",
                                 files=files,
-                                data=data,
                                 timeout=360
                             )
 
@@ -1682,20 +1653,19 @@ def main():
             # Regular file analysis
             elif st.button("🔍 Analyze " + ("Audio" if is_audio_upload else " Conversation"), type="primary"):
 
-                processing_message = "🎵 AI is processing and analyzing your audio file..." if is_audio_upload else "🤖 AI is analyzing your conversation..."
+                processing_message = "🎵 AI is processing and analyzing your audio file..." \
+                    if is_audio_upload else "🤖 AI is analyzing your conversation..."
 
                 with st.spinner(processing_message):
                     try:
                         # Prepare files and data for API call
                         files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                        data = {"domain": domain}
 
                         # Make API request with longer timeout for audio files
                         timeout = 480 if is_audio_upload else 60
                         response = requests.post(
                             f"{API_URL}/analyze/",
                             files=files,
-                            data=data,
                             timeout=timeout
                         )
 
@@ -1724,7 +1694,8 @@ def main():
                             st.error(f"❌ Unexpected error: HTTP {response.status_code}")
 
                     except requests.exceptions.Timeout:
-                        timeout_msg = "⏱️ Audio processing timed out. The file might be too large." if is_audio_upload else "⏱️ Request timed out."
+                        timeout_msg = "⏱️ Audio processing timed out. The file might be too large." \
+                            if is_audio_upload else "⏱️ Request timed out."
                         st.error(timeout_msg)
 
                     except requests.exceptions.ConnectionError:
@@ -1763,7 +1734,7 @@ def main():
             ```
 
             **🎙️ Audio File Support:**
-            - 🎵 Upload WAV or MP3 files
+            - 🎵 Upload WAV, MP3, MP4 or M4A files
             - 🤖 Automatic speech-to-text transcription
             - 👥 Speaker diarization (Agent/Customer)
             - 📞 Works with phone calls, meetings, interviews
@@ -1807,7 +1778,7 @@ def main():
             st.info("""
             **🎙️ Audio Processing Pipeline:**
 
-            1. **📤 Upload** - WAV, MP3 files
+            1. **📤 Upload** - WAV, MP3, MP4 or M4A files
             2. **🔄 Convert** - Standardize audio format
             3. **📝 Transcribe** - Speech-to-text using Whisper
             4. **👥 Diarize** - Identify different speakers
@@ -1821,7 +1792,7 @@ def main():
             st.warning("""
             **🎙️ Audio File Requirements:**
 
-            - **📁 Format**: WAV, MP3
+            - **📁 Format**: WAV, MP3, MP4 or M4A
             - **🎤 Quality**: Clear speech, minimal background noise
             - **⏱️ Duration**: Up to 60 minutes recommended
             - **👥 Speakers**: 2-3 speakers work best
@@ -1839,14 +1810,19 @@ def main():
         st.subheader("📋 Sample Files")
 
         # Create sample text file
-        sample_conversation = """Customer: Hi, I'm calling about my recent order. I haven't received it yet and it's been over a week.
-Agent: I'm sorry to hear about the delay with your order. Let me look into this for you right away. Can you please provide me with your order number?
+        sample_conversation = """Customer: Hi, I'm calling about my recent order. I haven't received it yet and it's
+         been over a week.
+Agent: I'm sorry to hear about the delay with your order. Let me look into this for you right away. Can you please 
+provide me with your order number?
 Customer: Yes, it's ORDER-12345. I placed it last Monday and was told it would arrive within 3-5 business days.
-Agent: Thank you for providing that information. I can see your order here in our system. It looks like there was a delay at our distribution center. I sincerely apologize for this inconvenience.
+Agent: Thank you for providing that information. I can see your order here in our system. It looks like there was a 
+delay at our distribution center. I sincerely apologize for this inconvenience.
 Customer: This is really frustrating. I needed these items for an event this weekend.
-Agent: I completely understand your frustration, and I want to make this right for you. Let me see what options we have. I can expedite your shipment at no extra cost and provide you with tracking information.
+Agent: I completely understand your frustration, and I want to make this right for you. Let me see what options we have.
+ I can expedite your shipment at no extra cost and provide you with tracking information.
 Customer: That would be helpful. When can I expect to receive it?
-Agent: With expedited shipping, you should receive your order by tomorrow afternoon. I'm also applying a 20% discount to your account for the inconvenience caused.
+Agent: With expedited shipping, you should receive your order by tomorrow afternoon. I'm also applying a 20% discount 
+to your account for the inconvenience caused.
 Customer: Thank you, I appreciate you taking care of this so quickly.
 Agent: You're very welcome! Is there anything else I can help you with today?
 Customer: No, that covers everything. Thank you for your help.

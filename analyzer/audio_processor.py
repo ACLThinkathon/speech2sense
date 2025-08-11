@@ -104,6 +104,77 @@ def split_audio_to_segments(audio_file_path, speaker_segments):
     return audio_segments, sr
 
 
+def transcribe_audio_only(audio_file_path: str) -> str:
+    """
+    Transcribe full audio file without diarization or analysis.
+    Returns the raw transcription text.
+    """
+    if not client:
+        raise Exception("Groq client not initialized. Please set GROQ_API_KEY in .env.")
+
+    if not os.path.exists(audio_file_path):
+        raise Exception(f"Audio file not found: {audio_file_path}")
+
+    try:
+        # Check audio format
+        audio = File(audio_file_path)
+        needs_conversion = True
+
+        if isinstance(audio, WAVE):
+            needs_conversion = False
+        elif isinstance(audio, (MP3, MP4)) or has_mp3_frame(audio_file_path):
+            needs_conversion = True
+        else:
+            logger.warning("[DEBUG] Unknown audio format, attempting conversion")
+
+        processing_file_path = audio_file_path
+
+        if needs_conversion:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_wav:
+                temp_wav_path = temp_wav.name
+
+            try:
+                rebuild_audio(audio_file_path, temp_wav_path)
+                processing_file_path = temp_wav_path
+                logger.info("[DEBUG] Audio conversion completed for transcription")
+            except Exception as e:
+                logger.error(f"[DEBUG] Audio conversion failed: {str(e)}")
+                processing_file_path = audio_file_path
+
+        # Perform transcription on full file
+        with open(processing_file_path, "rb") as f:
+            response = client.audio.transcriptions.create(
+                file=f,
+                model="whisper-large-v3-turbo",
+                response_format="verbose_json",
+                temperature=0.0
+            )
+
+        if hasattr(response, "text"):
+            text = response.text
+        elif hasattr(response, "segments"):
+            text = " ".join(subseg["text"] for subseg in response.segments)
+        else:
+            text = ""
+
+        # Clean up temp file
+        if needs_conversion and processing_file_path != audio_file_path:
+            try:
+                os.unlink(processing_file_path)
+            except:
+                pass
+
+        if not text.strip():
+            raise Exception("No transcription text generated from audio.")
+
+        return text.strip()
+
+    except Exception as e:
+        logger.error(f"[DEBUG] transcribe_audio_only failed: {e}")
+        logger.error(traceback.format_exc())
+        raise
+
+
 def transcribe_speaker_segments(audio_file_path, speaker_segments):
     """
     For each diarization segment, transcribe the corresponding audio and assign it directly to the speaker.
