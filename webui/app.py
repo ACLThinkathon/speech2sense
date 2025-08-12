@@ -1605,11 +1605,6 @@ def main():
                             mime="text/plain"
                         )
 
-                        # Option to analyze transcription
-                        if st.button("🔍 Analyze This Transcription"):
-                            st.session_state['transcription_to_analyze'] = transcription
-                            st.rerun()
-
                     else:
                         st.error(f"❌ Transcription failed: {error}")
 
