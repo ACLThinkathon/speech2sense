@@ -15,7 +15,7 @@ from datetime import datetime, date
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from analyzer.analyzer import analyze_sentences
-from analyzer.audio_processor import process_audio_file, transcribe_audio_only
+from analyzer.audio_processor import process_audio_file, transcribe_audio_only, save_transcript_file
 from databaseLib.models import (
     Conversation, Utterance, AnalysisResult
 )
@@ -253,6 +253,44 @@ async def analyze_conversation(
         analysis_results['raw_text'] = text_content
         analysis_results['file_type'] = 'audio' if is_audio_file else 'text'
         analysis_results['original_filename'] = file.filename
+
+        # Save transcript file after successful analysis
+        try:
+            conversation_id = analysis_results.get('conversation_id', str(uuid.uuid4()))
+            utterances = analysis_results.get('utterances', [])
+
+            if utterances:
+                # Create summary from topic and CSAT data
+                summary_lines = []
+                if 'topic_analysis' in analysis_results:
+                    topic_data = analysis_results['topic_analysis']
+                    summary_lines.append(f"Primary Topic: {topic_data.get('primary_topic', 'Unknown')}")
+                    if topic_data.get('reasoning'):
+                        summary_lines.append(f"Context: {topic_data.get('reasoning')}")
+
+                if 'csat_analysis' in analysis_results:
+                    csat_data = analysis_results['csat_analysis']
+                    summary_lines.append(
+                        f"CSAT Score: {csat_data.get('csat_score', 0)}/100 ({csat_data.get('csat_rating', 'Unknown')})")
+
+                if 'agent_performance' in analysis_results:
+                    agent_data = analysis_results['agent_performance']
+                    summary_lines.append(
+                        f"Agent Performance: {agent_data.get('overall_score', 0)}/100 ({agent_data.get('rating', 'Unknown')})")
+
+                # Save transcript file
+                transcript_path = save_transcript_file(
+                    conversation_id=conversation_id,
+                    utterances=utterances,
+                    summary=summary_lines if summary_lines else None
+                )
+
+                analysis_results['transcript_file_path'] = transcript_path
+                logger.info(f"Transcript saved to: {transcript_path}")
+
+        except Exception as transcript_error:
+            logger.warning(f"Failed to save transcript file: {str(transcript_error)}")
+            # Don't fail the entire analysis if transcript saving fails
 
         background_tasks.add_task(store_analysis_results, db, analysis_results)
 

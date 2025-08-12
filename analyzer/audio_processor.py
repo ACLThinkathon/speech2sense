@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import tempfile
 import logging
@@ -49,6 +50,14 @@ try:
 except Exception as e:
     logger.error(f"Failed to load diarization pipeline: {str(e)}")
     pipeline = None
+
+
+# Filler word remover
+def clean_text(text: str) -> str:
+    FILLER_PATTERN = r'\b(um+|uh+|ah+|erm|hmm|you know|like)\b'
+    text = re.sub(FILLER_PATTERN, '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s{2,}', ' ', text).strip()
+    return text
 
 
 def rebuild_audio(input_path: str, output_path: str) -> None:
@@ -152,8 +161,11 @@ def transcribe_audio_only(audio_file_path: str) -> str:
 
         if hasattr(response, "text"):
             text = response.text
+            # Clean transcript text if available
+            text = clean_text(text)
         elif hasattr(response, "segments"):
             text = " ".join(subseg["text"] for subseg in response.segments)
+            text = clean_text(text)
         else:
             text = ""
 
@@ -173,6 +185,33 @@ def transcribe_audio_only(audio_file_path: str) -> str:
         logger.error(f"[DEBUG] transcribe_audio_only failed: {e}")
         logger.error(traceback.format_exc())
         raise
+
+
+def save_transcript_file(conversation_id, utterances, summary=None, output_dir="/data/transcripts"):
+    """
+    Save a conversation to a text file.
+    Includes:
+      - Optional bullet-point summary at top
+      - Speaker-labeled dialogue with timestamps
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, f"{conversation_id}.txt")
+    with open(path, "w", encoding="utf-8") as fh:
+        # Write summary first if provided
+        if summary:
+            fh.write("=== Conversation Summary ===\n")
+            for bullet in summary:
+                fh.write(f"• {bullet.strip()}\n")
+            fh.write("\n=== Detailed Transcript ===\n")
+        else:
+            fh.write("=== Detailed Transcript ===\n")
+        # Write each utterance
+        for u in utterances:
+            ts = f"[{u.get('start',0):.2f}-{u.get('end',0):.2f}]"
+            speaker = u.get('speaker', 'Unknown')
+            text = clean_text(u.get('text', ''))
+            fh.write(f"{ts} {speaker}: {text}\n")
+    return path
 
 
 def transcribe_speaker_segments(audio_file_path, speaker_segments):

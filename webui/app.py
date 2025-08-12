@@ -1454,6 +1454,79 @@ def display_analysis_results(data):
             with st.expander("📋 Raw Analysis JSON", expanded=False):
                 st.json(data)
 
+        # Transcript download section
+        st.subheader("📄 Download Transcript")
+
+        # Create transcript content
+        transcript_content = create_transcript_file_content(data)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Download formatted transcript
+            st.download_button(
+                label="📥 Download Formatted Transcript",
+                data=transcript_content,
+                file_name=f"transcript_{data.get('conversation_id', 'unknown')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                help="Download a formatted transcript with summary and speaker labels"
+            )
+
+        with col2:
+            # Download raw text
+            raw_text = data.get('raw_text', '')
+            if raw_text:
+                st.download_button(
+                    label="📥 Download Raw Text",
+                    data=raw_text,
+                    file_name=f"raw_text_{data.get('conversation_id', 'unknown')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                    help="Download the raw transcribed/uploaded text"
+                )
+
+
+def create_transcript_file_content(data):
+    """Create transcript file content from analysis data"""
+    utterances = data.get('utterances', [])
+    conversation_id = data.get('conversation_id', 'unknown')
+
+    # Create summary
+    summary_lines = []
+    if 'topic_analysis' in data:
+        topic_data = data['topic_analysis']
+        summary_lines.append(f"Primary Topic: {topic_data.get('primary_topic', 'Unknown')}")
+        if topic_data.get('reasoning'):
+            summary_lines.append(f"Context: {topic_data.get('reasoning')}")
+
+    if 'csat_analysis' in data:
+        csat_data = data['csat_analysis']
+        summary_lines.append(
+            f"CSAT Score: {csat_data.get('csat_score', 0)}/100 ({csat_data.get('csat_rating', 'Unknown')})")
+
+    if 'agent_performance' in data:
+        agent_data = data['agent_performance']
+        summary_lines.append(
+            f"Agent Performance: {agent_data.get('overall_score', 0)}/100 ({agent_data.get('rating', 'Unknown')})")
+
+    # Build transcript content
+    lines = []
+
+    if summary_lines:
+        lines.append("=== Conversation Summary ===")
+        for bullet in summary_lines:
+            lines.append(f"• {bullet}")
+        lines.append("")
+
+    lines.append("=== Detailed Transcript ===")
+
+    for utterance in utterances:
+        speaker = utterance.get('speaker', 'Unknown')
+        text = utterance.get('sentence', '')
+        timestamp = f"[{utterance.get('utterance_id', 0)}]"
+        lines.append(f"{timestamp} {speaker}: {text}")
+
+    return "\n".join(lines)
+
 
 def check_api_health():
     """Check if the API is healthy"""
